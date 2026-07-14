@@ -249,7 +249,7 @@ function verifySession() {
     const token = params.get('token');
     if (!playerId || !token) return;
     try {
-      const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/verify-token?token=${encodeURIComponent(token)}`);
+      const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/token?action=verify&token=${encodeURIComponent(token)}`);
       if (!r.ok) return;
       const data = await r.json();
       sessionPlayer = { playerId: data.player_id, token, displayName: data.display_name, lastMatchNumber: null };
@@ -268,7 +268,7 @@ async function getServerTierName(){
   if (sessionReady) await sessionReady;
   if (!sessionPlayer) return nextTierName();
   try {
-    const url = `${MEDIASKILLS_ORIGIN}/api/get-match-config?player_id=${encodeURIComponent(sessionPlayer.playerId)}&token=${encodeURIComponent(sessionPlayer.token)}&game=pong`;
+    const url = `${MEDIASKILLS_ORIGIN}/api/pong-game?action=match-config&player_id=${encodeURIComponent(sessionPlayer.playerId)}&token=${encodeURIComponent(sessionPlayer.token)}&game=pong`;
     const r = await fetch(url);
     if (!r.ok) throw new Error('bad status');
     const data = await r.json();
@@ -285,7 +285,7 @@ async function getServerTierName(){
 async function creditWin(){
   if (!sessionPlayer || sessionPlayer.lastMatchNumber == null) return;
   try {
-    await fetch(`${MEDIASKILLS_ORIGIN}/api/record-win`, {
+    await fetch(`${MEDIASKILLS_ORIGIN}/api/pong-game?action=record-win`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
