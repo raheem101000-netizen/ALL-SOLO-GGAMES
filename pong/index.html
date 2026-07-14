@@ -131,8 +131,8 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
       <button class="btn btn-primary" id="btn-start">Start Series</button>
       <div id="menu-hint">
         Drag finger / Arrow keys to move<br>
-        First to 5 points wins each match<br>
-        AI gets harder every 3 matches<br>
+        First to 5 points wins the match<br>
+        Pay $2.99 · Win $5 · One match per play<br>
         Finish in profit to cash out
       </div>
     </div>
@@ -171,26 +171,57 @@ const cdMsg   = document.getElementById('cd-msg');
 
 let W, H, PADDLE_LONG, PADDLE_SHORT, BALL_R;
 
-// ── SERIES CONFIG ─────────────────────────────────────────────────────────────
-const TOTAL_MATCHES  = 10;
-const POINTS_TO_WIN  = 3;
-const MATCH_STAKE    = 10;
+// ── SINGLE-MATCH CONFIG + DIFFICULTY CYCLE ────────────────────────────────────
+const POINTS_TO_WIN = 5;        // first to 5 wins the match
+const ENTRY_FEE     = 2.99;     // paid per match (payment hook - backend)
+const WIN_PAYOUT    = 5.00;     // flat payout on any win (payout hook - backend)
 
-const TIER_LABELS  = ['EASY','EASY+','MEDIUM','MEDIUM+','HARD','HARD+','MAX'];
-const TIER_COLORS  = ['#4CFF6C','#4CFF6C','#FFD700','#FFD700','#FF8C00','#FF4444','#FF4444'];
+// 4 skill-honest tiers (configurable — retune after playtest/simulation).
+// Difficulty comes ONLY from the fixed cycle below, never from a player's win history.
+const TIERS = {
+  EASY:   { label:'EASY',       color:'#4CFF6C', reactMin:12, reactMax:18, predErr:50, speed:0.65, miss:0.18 },
+  MEDIUM: { label:'MEDIUM',     color:'#FFD700', reactMin:5,  reactMax:8,  predErr:20, speed:0.88, miss:0.06 },
+  HARD:   { label:'HARD',       color:'#FF8C00', reactMin:1,  reactMax:3,  predErr:8,  speed:1.00, miss:0.02 },
+  SUPER:  { label:'SUPER HARD', color:'#FF4444', reactMin:0,  reactMax:1,  predErr:2,  speed:1.08, miss:0.005 },
+};
+// Fixed 12-match cycle: 2 Easy, 3 Medium, 4 Hard, 3 Super Hard (~33% avg win rate).
+const CYCLE_COMPOSITION = ['EASY','EASY','MEDIUM','MEDIUM','MEDIUM','HARD','HARD','HARD','HARD','SUPER']; // spec: 2E/3M/4H/1S (~40.5% win rate)
 
-function getMatchTier(m) {
-  if (m === 1) return 0; // EASY — the hook, everyone wins
-  if (m === 2) return 3; // MEDIUM+ — sudden step up, wake-up call
-  if (m <= 4)  return 5; // HARD+ — most players start losing here
-  return 6;              // MAX — matches 5-10, only top 20% survive
+function buildCycleOrder(){
+  // SPEC sequencing: 2 Easy, 3 Medium, 4 Hard, 1 Super Hard.
+  // Rules: Game 1 always Easy; liability(Easy/Medium) and safe(Hard/Super) ALTERNATE;
+  // Super is a single isolated game; which liability slot is Easy vs Medium and where
+  // Super lands among safe slots is randomized per cycle.
+  const liability = ['MEDIUM','MEDIUM','MEDIUM','EASY']; // 4 (one Easy reserved for slot 1)
+  const safe = ['HARD','HARD','HARD','HARD','SUPER'];    // 5
+  for(let i=liability.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [liability[i],liability[j]]=[liability[j],liability[i]]; }
+  for(let i=safe.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [safe[i],safe[j]]=[safe[j],safe[i]]; }
+  const seq = ['EASY']; // Game 1 locked Easy
+  let li=0, si=0;
+  for(let pos=2; pos<=10; pos++){
+    if(pos%2===0){ seq.push(safe[si++]); }   // even slots = safe
+    else { seq.push(liability[li++]); }        // odd slots = liability
+  }
+  return seq;
 }
 
-let seriesMatch   = 1;
-let seriesP1Wins  = 0;
-let seriesAIWins  = 0;
-let seriesResults = [];
-let seriesBalance = 0;
+let cycleOrder = buildCycleOrder();
+let cyclePos = 0;
+let currentTierName = 'EASY';
+
+function nextTierName(){
+  // Every cycle's slot 1 is already pinned Easy by buildCycleOrder().
+  if(cyclePos >= cycleOrder.length){ cycleOrder = buildCycleOrder(); cyclePos = 0; }
+  return cycleOrder[cyclePos++];
+}
+function curTier(){ return TIERS[currentTierName]; }
+
+// Legacy display compatibility
+const TIER_LABELS = ['EASY','EASY+','MEDIUM','MEDIUM+','HARD','HARD+','SUPER HARD'];
+const TIER_COLORS = ['#4CFF6C','#4CFF6C','#FFD700','#FFD700','#FF8C00','#FF4444','#FF4444'];
+function tierNameToIdx(n){ return n==='EASY'?0:n==='MEDIUM'?2:n==='HARD'?4:6; }
+
+let matchNumber = 0;  // display counter
 
 
 // ── GAME STATE ────────────────────────────────────────────────────────────────
@@ -231,11 +262,11 @@ function resize() {
 function updateHUD() {
   const tier = currentTier;
   const color = TIER_COLORS[tier];
-  const bal = seriesBalance;
+  const bal = 0;
   document.getElementById('hud-balance').textContent = (bal >= 0 ? '+' : '') + '$' + bal;
   document.getElementById('hud-balance').style.color = bal > 0 ? '#4CFF6C' : bal < 0 ? '#FF4444' : 'rgba(255,255,255,0.4)';
-  document.getElementById('hud-match').textContent = `Match ${seriesMatch} / ${TOTAL_MATCHES}`;
-  document.getElementById('hud-wins').textContent  = `${seriesP1Wins} — ${seriesAIWins}`;
+  document.getElementById('hud-match').textContent = 'Entry $'+ENTRY_FEE.toFixed(2)+' · First to '+POINTS_TO_WIN;
+  document.getElementById('hud-wins').textContent  = (state.p1&&state.p2) ? (state.p1.score+' — '+state.p2.score) : '0 — 0';
   document.getElementById('hud-tier').textContent  = TIER_LABELS[tier];
   document.getElementById('hud-tier').style.color  = color;
   document.getElementById('hud-diff').textContent  = 'Difficulty';
@@ -245,13 +276,12 @@ function updateHUD() {
 function buildPhaseBar() {
   const bar = document.getElementById('phase-bar');
   bar.innerHTML = '';
-  for (let i = 0; i < TOTAL_MATCHES; i++) {
+  for (let i = 0; i < CYCLE_COMPOSITION.length; i++) {
     const seg = document.createElement('div');
     seg.className = 'phase-seg';
-    const t = getMatchTier(i+1);
+    const t = tierNameToIdx(CYCLE_COMPOSITION[i]);
     seg.style.background = TIER_COLORS[t];
-    if (i+1 < seriesMatch) seg.classList.add('done');
-    else if (i+1 === seriesMatch) seg.classList.add('current');
+    // single-match: no series progress highlight
     bar.appendChild(seg);
   }
 }
@@ -266,7 +296,9 @@ function initPositions() {
 }
 
 function initState() {
-  currentTier = getMatchTier(seriesMatch);
+  // NOTE: tier is chosen in advanceTier() at real match start, NOT here
+  // (initState also runs at page load / resize, which must not consume the cycle).
+  currentTier = tierNameToIdx(currentTierName);
   state = {
     ball: { x:W/2, y:H/2, vx:0, vy:0, _pendingDir:Math.random()>0.5, _pendingSp:BALL_SPEED() },
     p1: { x:0, y:0, score:0, name:'PLAYER 1' },
@@ -281,7 +313,13 @@ function initState() {
 }
 
 // ── COUNTDOWN THEN START ──────────────────────────────────────────────────────
+function advanceTier(){
+  currentTierName = nextTierName();
+  currentTier = tierNameToIdx(currentTierName);
+  matchNumber++;
+}
 function startMatchWithCountdown() {
+  advanceTier();
   initState();
   let count = 3;
   cdMsg.textContent = count; cdMsg.style.opacity = '1';
@@ -435,96 +473,41 @@ function moveAI() {
   const p = state.p2;
   const b = state.ball;
   const len = getPaddleLen(p);
+  const T = curTier(); // tier config: reactMin/Max, predErr, speed, miss
 
-  const tierSpeed = seriesMatch <= 2 ? 0.018
-                  : seriesMatch >= 8 ? 0.038
-                  : 0.028;
-  const pspd = Math.min(W,H) * tierSpeed;
+  const pspd = Math.min(W,H) * 0.040 * T.speed;
 
+  // Reaction delay: drift slowly toward last target while "reacting"
+  if (aiReactionDelay > 0) {
+    aiReactionDelay--;
+    if (aiTargetCache !== null) {
+      const diff = aiTargetCache - p.x;
+      if (Math.abs(diff) > 1) p.x += Math.sign(diff) * Math.min(pspd * 0.5, Math.abs(diff));
+    }
+    return;
+  }
+
+  const ballComing = b.vy < 0; // toward AI (top)
   let target;
 
-  if (seriesMatch <= 2) {
-    // CLUMSY HUMAN — slow, big errors, occasionally loses ball
-    const ballComing = b.vy < 0;
-    if (!ballComing) {
-      target = W/2 - len/2 + (Math.random()-0.5) * W * 0.4;
-    } else {
-      target = b.x - len/2 + (Math.random()-0.5) * len * 1.8;
-      if (Math.random() < 0.02) target = Math.random() * (W - len);
-    }
-
-  } else if (seriesMatch <= 4) {
-    // SKILLED HUMAN — reacts to ball, no prediction, reaction delay, misjudges wall bounces
-    if (aiReactionDelay > 0) {
-      aiReactionDelay--;
-      if (aiTargetCache !== null) {
-        const diff = aiTargetCache - p.x;
-        if (Math.abs(diff) > 1) p.x += Math.sign(diff) * Math.min(pspd * 0.3, Math.abs(diff));
-      }
-      return;
-    }
-    const ballComing = b.vy < 0;
-    if (!ballComing) {
-      target = W/2 - len/2 + (Math.random()-0.5) * len * 0.5;
-    } else {
-      const isWallBounce = Math.abs(b.vx) > Math.abs(b.vy) * 0.5;
-      const wallError = isWallBounce && Math.random() < 0.35
-        ? (Math.random()-0.5) * len * 1.4
-        : (Math.random()-0.5) * len * 0.5;
-      target = b.x - len/2 + wallError;
-      if (Math.random() < 0.1) target += (Math.random()-0.5) * len * 0.8;
-    }
-    aiTargetCache = target;
-    aiReactionDelay = Math.floor(Math.random() * 10) + 10;
-
-  } else if (seriesMatch <= 7) {
-    // PREDICTIVE AI — matches 5-7, same speed as player, small errors
-    if (aiReactionDelay > 0) {
-      aiReactionDelay--;
-      if (aiTargetCache !== null) {
-        const diff = aiTargetCache - p.x;
-        if (Math.abs(diff) > 1) p.x += Math.sign(diff) * Math.min(pspd * 0.6, Math.abs(diff));
-      }
-      return;
-    }
-    const land = predictLanding();
-    const ballMovingRight = b.vx > 0;
-    const aimOffset = len * 0.38 * (ballMovingRight ? -1 : 1);
-    const isSharp = Math.abs(b.vx) > Math.abs(b.vy) * 0.8;
-    const err = isSharp && Math.random() < 0.15
-      ? (Math.random()-0.5) * len * 0.6
-      : (Math.random()-0.5) * len * 0.12;
-    target = land - len/2 + aimOffset + err;
-    aiTargetCache = target;
-    aiReactionDelay = 3;
-
+  if (!ballComing) {
+    const slack = len * (0.3 + T.predErr/60);
+    target = W/2 - len/2 + (Math.random()-0.5) * slack;
   } else {
-    // NEAR PERFECT AI — matches 8-10, faster than player, almost no errors
-    if (aiReactionDelay > 0) {
-      aiReactionDelay--;
-      if (aiTargetCache !== null) {
-        const diff = aiTargetCache - p.x;
-        if (Math.abs(diff) > 1) p.x += Math.sign(diff) * Math.min(pspd * 0.6, Math.abs(diff));
-      }
-      return;
-    }
-    const land = predictLanding();
-    const ballMovingRight = b.vx > 0;
-    const aimOffset = len * 0.42 * (ballMovingRight ? -1 : 1);
-    const isSharp = Math.abs(b.vx) > Math.abs(b.vy) * 0.8;
-    const err = isSharp && Math.random() < 0.03
-      ? (Math.random()-0.5) * len * 0.4
-      : (Math.random()-0.5) * len * 0.04;
-    target = land - len/2 + aimOffset + err;
-    aiTargetCache = target;
-    aiReactionDelay = 1;
+    let land = (T.predErr > 30) ? b.x : predictLanding();
+    const err = (Math.random()-0.5) * 2 * T.predErr;
+    target = land - len/2 + err;
+    if (Math.random() < T.miss) target += (Math.random()-0.5) * len * 2.5;
   }
+
+  aiTargetCache = target;
+  aiReactionDelay = T.reactMin + Math.floor(Math.random() * (T.reactMax - T.reactMin + 1));
 
   const diff = target - p.x;
   if (Math.abs(diff) > 1) p.x += Math.sign(diff) * Math.min(pspd, Math.abs(diff));
 }
 
-// ── UPDATE ────────────────────────────────────────────────────────────────────
+
 function update(){
   if(!gameRunning || !state.p1 || !state.p2 || !state.ball) return;
   tickEffects(); tickObstacles();
@@ -579,91 +562,43 @@ function checkMatchPoint(p1won){
   const p=p1won?state.p1:state.p2;
   if(p.score>=POINTS_TO_WIN){
     gameRunning=false;
-    if(p1won) seriesP1Wins++; else seriesAIWins++;
-    seriesBalance += p1won ? MATCH_STAKE : -MATCH_STAKE;
-    seriesResults.push(p1won?'p1':'ai');
     updateHUD();
     setTimeout(()=>showMatchResult(p1won), 400);
   }
 }
 
-function buildTally(elId){
-  const el=document.getElementById(elId);
-  el.innerHTML='';
-  for(let i=0;i<TOTAL_MATCHES;i++){
-    const d=document.createElement('div');
-    d.className='tdot';
-    if(i<seriesResults.length) d.classList.add(seriesResults[i]==='p1'?'p1':'ai');
-    el.appendChild(d);
-  }
-}
+function buildTally(elId){ /* unused in single-match */ }
 
 function showMatchResult(p1won){
   const chEl=document.getElementById('mr-change');
-  chEl.textContent=p1won?'+$'+MATCH_STAKE:'-$'+MATCH_STAKE;
-  chEl.style.color=p1won?'#4CFF6C':'#FF4444';
+  chEl.textContent = p1won ? 'YOU WIN' : 'YOU LOSE';
+  chEl.style.color = p1won ? '#4CFF6C' : '#FF4444';
 
-  const bal=seriesBalance;
   const balEl=document.getElementById('mr-balance');
-  balEl.textContent='Balance: '+(bal>=0?'+':'')+'$'+bal;
-  balEl.style.color=bal>0?'#4CFF6C':bal<0?'#FF4444':'rgba(255,255,255,0.5)';
+  balEl.textContent = p1won ? 'You won $'+WIN_PAYOUT.toFixed(2)+'!' : 'No payout';
+  balEl.style.color = p1won ? '#4CFF6C' : 'rgba(255,255,255,0.5)';
 
-  document.getElementById('mr-score').textContent=`${state.p1.score} — ${state.p2.score}`;
+  document.getElementById('mr-score').textContent = state.p1.score+' — '+state.p2.score;
+  document.getElementById('mr-match').textContent = 'Difficulty: '+currentTierName;
+  document.getElementById('btn-next-match').textContent = 'Play Again ($'+ENTRY_FEE.toFixed(2)+')';
 
-  if(seriesMatch<TOTAL_MATCHES){
-    const nextTier=getMatchTier(seriesMatch+1);
-    document.getElementById('mr-match').textContent=`Match ${seriesMatch} of ${TOTAL_MATCHES} — Next: ${TIER_LABELS[nextTier]}`;
-    document.getElementById('btn-next-match').textContent='Next Match →';
-  } else {
-    document.getElementById('mr-match').textContent='Series complete';
-    document.getElementById('btn-next-match').textContent='See Results';
-  }
-
-  buildTally('mr-tally');
+  const tally=document.getElementById('mr-tally'); if(tally) tally.style.display='none';
   document.getElementById('match-result').style.display='flex';
 }
 
-function showSeriesResult(){
-  document.getElementById('match-result').style.display='none';
-  const payout=Math.max(0, seriesBalance);
-  const profit=seriesBalance>0;
-  const se_title=document.getElementById('se-title');
-  const se_payout=document.getElementById('se-payout');
-  const se_sub=document.getElementById('se-sub');
-  se_title.textContent='Session Complete';
-  if(profit){
-    se_payout.textContent='$'+seriesBalance;
-    se_payout.style.color='#4CFF6C';
-    se_sub.textContent='You finished in profit — cash out your winnings';
-    document.getElementById('btn-cashout').style.display='block';
-  } else if(seriesBalance===0){
-    se_payout.textContent='$0';
-    se_payout.style.color='rgba(255,255,255,0.4)';
-    se_sub.textContent='You broke even — no payout this session';
-    document.getElementById('btn-cashout').style.display='none';
-  } else {
-    se_payout.textContent='$'+seriesBalance;
-    se_payout.style.color='#FF4444';
-    se_sub.textContent='No payout — you need a positive balance to cash out';
-    document.getElementById('btn-cashout').style.display='none';
-  }
-  document.getElementById('se-summary').textContent=`${seriesP1Wins} wins / ${seriesAIWins} losses across 20 matches`;
-  buildTally('se-tally');
-  document.getElementById('series-result').style.display='flex';
-}
+function showSeriesResult(){ /* unused in single-match */ }
 
 function startSeries(){
-  seriesMatch=1; seriesP1Wins=0; seriesAIWins=0; seriesResults=[]; seriesBalance=0;
+  // START ONE PAID MATCH (payment hook: charge ENTRY_FEE in backend)
   document.getElementById('overlay').style.display='none';
-  document.getElementById('series-result').style.display='none';
+  const sr=document.getElementById('series-result'); if(sr) sr.style.display='none';
   startMatchWithCountdown();
   schedulePowerup();
 }
 
 function nextMatch(){
+  // PLAY AGAIN = one more paid match, next tier in the cycle
   document.getElementById('match-result').style.display='none';
-  if(seriesMatch>=TOTAL_MATCHES){ showSeriesResult(); return; }
-  seriesMatch++;
   startMatchWithCountdown();
   schedulePowerup();
 }
@@ -798,7 +733,7 @@ document.getElementById('btn-series-menu').onclick  = ()=>{
   document.getElementById('overlay').style.display='flex';
 };
 document.getElementById('btn-cashout').onclick = ()=>{
-  alert('Cashing out $'+Math.max(0,seriesBalance)+'! (Stripe integration goes here)');
+  alert('Payout handled at match end in single-match model.');
 };
 
 window.addEventListener('resize', resize);
