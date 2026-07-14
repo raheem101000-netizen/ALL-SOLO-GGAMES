@@ -99,19 +99,14 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
 
     <!-- HUD -->
     <div id="hud">
-      <div id="hud-balance">+$0</div>
       <div id="hud-mid">
-        <div id="hud-match">Match 1 / 20</div>
-        <div id="hud-wins">0 — 0</div>
+        <div id="hud-wins"><span style="color:#4CFF6C">YOU 0</span> <span style="color:rgba(255,255,255,0.4)">—</span> <span style="color:#FF4444">0 CPU</span></div>
       </div>
       <div id="hud-right">
         <div id="hud-diff">Difficulty</div>
         <div id="hud-tier" style="color:#4CFF6C">EASY</div>
       </div>
     </div>
-
-    <!-- PHASE BAR -->
-    <div id="phase-bar"></div>
 
     <!-- CANVAS -->
     <canvas id="canvas"></canvas>
@@ -262,31 +257,19 @@ function resize() {
 function updateHUD() {
   const tier = currentTier;
   const color = TIER_COLORS[tier];
-  const bal = 0;
-  document.getElementById('hud-balance').textContent = (bal >= 0 ? '+' : '') + '$' + bal;
-  document.getElementById('hud-balance').style.color = bal > 0 ? '#4CFF6C' : bal < 0 ? '#FF4444' : 'rgba(255,255,255,0.4)';
-  document.getElementById('hud-match').textContent = 'Entry $'+ENTRY_FEE.toFixed(2)+' · First to '+POINTS_TO_WIN;
-  document.getElementById('hud-wins').textContent  = (state.p1&&state.p2) ? (state.p1.score+' — '+state.p2.score) : '0 — 0';
+  if(state.p1 && state.p2){
+    document.getElementById('hud-wins').innerHTML =
+      '<span style="color:#4CFF6C">YOU '+state.p1.score+'</span> '+
+      '<span style="color:rgba(255,255,255,0.4)">—</span> '+
+      '<span style="color:#FF4444">'+state.p2.score+' CPU</span>';
+  }
   document.getElementById('hud-tier').textContent  = TIER_LABELS[tier];
   document.getElementById('hud-tier').style.color  = color;
   document.getElementById('hud-diff').textContent  = 'Difficulty';
-  buildPhaseBar();
 }
 
-function buildPhaseBar() {
-  const bar = document.getElementById('phase-bar');
-  bar.innerHTML = '';
-  for (let i = 0; i < CYCLE_COMPOSITION.length; i++) {
-    const seg = document.createElement('div');
-    seg.className = 'phase-seg';
-    const t = tierNameToIdx(CYCLE_COMPOSITION[i]);
-    seg.style.background = TIER_COLORS[t];
-    // single-match: no series progress highlight
-    bar.appendChild(seg);
-  }
-}
+function buildPhaseBar(){ /* removed - no phase bar in single-match */ }
 
-// ── INIT ──────────────────────────────────────────────────────────────────────
 function initPositions() {
   if (!state.p1) return;
   state.p1.x = W/2 - PADDLE_LONG/2;
@@ -302,7 +285,7 @@ function initState() {
   state = {
     ball: { x:W/2, y:H/2, vx:0, vy:0, _pendingDir:Math.random()>0.5, _pendingSp:BALL_SPEED() },
     p1: { x:0, y:0, score:0, name:'PLAYER 1' },
-    p2: { x:0, y:0, score:0, name: mode==='2p' ? 'PLAYER 2' : 'AI' },
+    p2: { x:0, y:0, score:0, name: mode==='2p' ? 'PLAYER 2' : 'CPU' },
     keys: {}
   };
   touchState = {}; activeEffects = {}; powerup = null;
@@ -737,7 +720,7 @@ document.getElementById('btn-cashout').onclick = ()=>{
 };
 
 window.addEventListener('resize', resize);
-resize(); initState(); buildPhaseBar(); updateHUD(); loop();
+resize(); initState(); updateHUD(); loop();
 </script>
 </body>
 </html>
