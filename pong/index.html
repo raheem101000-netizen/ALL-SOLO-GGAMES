@@ -25,6 +25,10 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font
 #hud-diff  { font-size: 11px; color: rgba(255,255,255,0.45); }
 #hud-tier  { font-size: 12px; font-weight: 700; letter-spacing: 1px; margin-top: 1px; }
 
+/* ── PLAYER BAR ── */
+#player-bar { padding: 5px 14px; background: rgba(0,0,0,0.95); text-align: center; font-size: 10px; letter-spacing: 1px; color: rgba(255,255,255,0.35); }
+#player-bar.linked { color: #4CFF6C; }
+
 /* ── PHASE BAR ── */
 #phase-bar { display: flex; gap: 3px; padding: 5px 14px; background: rgba(0,0,0,0.8); }
 .phase-seg { height: 4px; border-radius: 2px; flex: 1; opacity: 0.25; transition: opacity 0.3s; }
@@ -96,6 +100,9 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
 <body>
 <div id="gw">
   <div id="game-shell">
+
+    <!-- PLAYER BAR -->
+    <div id="player-bar">GUEST</div>
 
     <!-- HUD -->
     <div id="hud">
@@ -211,6 +218,41 @@ function nextTierName(){
 }
 function curTier(){ return TIERS[currentTierName]; }
 
+const MEDIASKILLS_ORIGIN = 'https://mediaskills.vercel.app';
+let sessionPlayer = null; // { playerId, token, displayName } once verified, else guest
+
+async function verifySession() {
+  const params = new URLSearchParams(location.search);
+  const playerId = params.get('player_id');
+  const token = params.get('token');
+  if (!playerId || !token) return;
+  try {
+    const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/verify-token?token=${encodeURIComponent(token)}`);
+    if (!r.ok) return;
+    const data = await r.json();
+    sessionPlayer = { playerId: data.player_id, token, displayName: data.display_name };
+    const bar = document.getElementById('player-bar');
+    bar.textContent = data.display_name;
+    bar.classList.add('linked');
+  } catch (_) {}
+}
+
+// Fetches the server-assigned tier name for the upcoming match. Falls back to the local
+// cycle for guests (no verified session) or if the request fails.
+async function getServerTierName(){
+  if (!sessionPlayer) return nextTierName();
+  try {
+    const url = `${MEDIASKILLS_ORIGIN}/api/get-match-config?player_id=${encodeURIComponent(sessionPlayer.playerId)}&token=${encodeURIComponent(sessionPlayer.token)}&game=pong`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('bad status');
+    const data = await r.json();
+    if (!TIERS[data.tier]) throw new Error('bad tier');
+    return data.tier;
+  } catch (_) {
+    return nextTierName();
+  }
+}
+
 // Legacy display compatibility
 const TIER_LABELS = ['EASY','EASY+','MEDIUM','MEDIUM+','HARD','HARD+','SUPER HARD'];
 const TIER_COLORS = ['#4CFF6C','#4CFF6C','#FFD700','#FFD700','#FF8C00','#FF4444','#FF4444'];
@@ -296,13 +338,13 @@ function initState() {
 }
 
 // ── COUNTDOWN THEN START ──────────────────────────────────────────────────────
-function advanceTier(){
-  currentTierName = nextTierName();
+async function advanceTier(){
+  currentTierName = await getServerTierName();
   currentTier = tierNameToIdx(currentTierName);
   matchNumber++;
 }
-function startMatchWithCountdown() {
-  advanceTier();
+async function startMatchWithCountdown() {
+  await advanceTier();
   initState();
   let count = 3;
   cdMsg.textContent = count; cdMsg.style.opacity = '1';
@@ -720,6 +762,7 @@ document.getElementById('btn-cashout').onclick = ()=>{
 };
 
 window.addEventListener('resize', resize);
+verifySession();
 resize(); initState(); updateHUD(); loop();
 </script>
 </body>
