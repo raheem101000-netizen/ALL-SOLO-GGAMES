@@ -219,27 +219,34 @@ function nextTierName(){
 function curTier(){ return TIERS[currentTierName]; }
 
 const MEDIASKILLS_ORIGIN = 'https://mediaskills.vercel.app';
-let sessionPlayer = null; // { playerId, token, displayName } once verified, else guest
+let sessionPlayer = null; // { playerId, token, displayName, lastMatchNumber } once verified, else guest
+let sessionReady = null;  // promise that resolves once verifySession() has settled
 
-async function verifySession() {
-  const params = new URLSearchParams(location.search);
-  const playerId = params.get('player_id');
-  const token = params.get('token');
-  if (!playerId || !token) return;
-  try {
-    const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/verify-token?token=${encodeURIComponent(token)}`);
-    if (!r.ok) return;
-    const data = await r.json();
-    sessionPlayer = { playerId: data.player_id, token, displayName: data.display_name };
-    const bar = document.getElementById('player-bar');
-    bar.textContent = data.display_name;
-    bar.classList.add('linked');
-  } catch (_) {}
+function verifySession() {
+  sessionReady = (async () => {
+    const params = new URLSearchParams(location.search);
+    const playerId = params.get('player_id');
+    const token = params.get('token');
+    if (!playerId || !token) return;
+    try {
+      const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/verify-token?token=${encodeURIComponent(token)}`);
+      if (!r.ok) return;
+      const data = await r.json();
+      sessionPlayer = { playerId: data.player_id, token, displayName: data.display_name, lastMatchNumber: null };
+      const bar = document.getElementById('player-bar');
+      bar.textContent = data.display_name;
+      bar.classList.add('linked');
+    } catch (_) {}
+  })();
+  return sessionReady;
 }
 
 // Fetches the server-assigned tier name for the upcoming match. Falls back to the local
-// cycle for guests (no verified session) or if the request fails.
+// cycle for guests (no verified session) or if the request fails. Awaits verifySession()
+// first so a fast click (Start Series before the token finishes verifying) can't race past
+// it and silently fall back to guest mode for a logged-in player.
 async function getServerTierName(){
+  if (sessionReady) await sessionReady;
   if (!sessionPlayer) return nextTierName();
   try {
     const url = `${MEDIASKILLS_ORIGIN}/api/get-match-config?player_id=${encodeURIComponent(sessionPlayer.playerId)}&token=${encodeURIComponent(sessionPlayer.token)}&game=pong`;
@@ -247,10 +254,29 @@ async function getServerTierName(){
     if (!r.ok) throw new Error('bad status');
     const data = await r.json();
     if (!TIERS[data.tier]) throw new Error('bad tier');
+    sessionPlayer.lastMatchNumber = data.match_number;
     return data.tier;
   } catch (_) {
     return nextTierName();
   }
+}
+
+// Credits the win payout server-side for a verified player. Guests have no account to
+// credit, so this is a no-op for them (matches the guest-fallback pattern used elsewhere).
+async function creditWin(){
+  if (!sessionPlayer || sessionPlayer.lastMatchNumber == null) return;
+  try {
+    await fetch(`${MEDIASKILLS_ORIGIN}/api/record-win`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        player_id: sessionPlayer.playerId,
+        token: sessionPlayer.token,
+        game: 'pong',
+        match_number: sessionPlayer.lastMatchNumber
+      })
+    });
+  } catch (_) {}
 }
 
 // Legacy display compatibility
@@ -588,6 +614,7 @@ function checkMatchPoint(p1won){
   if(p.score>=POINTS_TO_WIN){
     gameRunning=false;
     updateHUD();
+    if (p1won) creditWin();
     setTimeout(()=>showMatchResult(p1won), 400);
   }
 }
