@@ -219,11 +219,31 @@ function nextTierName(){
 function curTier(){ return TIERS[currentTierName]; }
 
 const MEDIASKILLS_ORIGIN = 'https://mediaskills.vercel.app';
+const SESSION_STORAGE_KEY = 'pong_session_player';
 let sessionPlayer = null; // { playerId, token, displayName, lastMatchNumber } once verified, else guest
 let sessionReady = null;  // promise that resolves once verifySession() has settled
 
+function showPlayerBar(displayName) {
+  const bar = document.getElementById('player-bar');
+  bar.textContent = displayName;
+  bar.classList.add('linked');
+}
+
+// Starting a paid match sends the browser away to Stripe and back, which fully reloads
+// the page and loses all JS state (including sessionPlayer) and the one-time verify-token
+// from the URL. So once a session is verified, it's cached in sessionStorage — get-match-config
+// and record-win don't care that the token is already "used" (they only check it was issued
+// to this player_id), so restoring from cache and skipping re-verification is safe.
 function verifySession() {
   sessionReady = (async () => {
+    const cached = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (cached) {
+      try {
+        sessionPlayer = JSON.parse(cached);
+        showPlayerBar(sessionPlayer.displayName);
+        return;
+      } catch (_) {}
+    }
     const params = new URLSearchParams(location.search);
     const playerId = params.get('player_id');
     const token = params.get('token');
@@ -233,9 +253,8 @@ function verifySession() {
       if (!r.ok) return;
       const data = await r.json();
       sessionPlayer = { playerId: data.player_id, token, displayName: data.display_name, lastMatchNumber: null };
-      const bar = document.getElementById('player-bar');
-      bar.textContent = data.display_name;
-      bar.classList.add('linked');
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionPlayer));
+      showPlayerBar(data.display_name);
     } catch (_) {}
   })();
   return sessionReady;
@@ -276,6 +295,41 @@ async function creditWin(){
         match_number: sessionPlayer.lastMatchNumber
       })
     });
+  } catch (_) {}
+}
+
+// Sends the browser to Stripe Checkout for the $2.99 entry fee. Gameplay only resumes
+// once the browser comes back with a Stripe-confirmed ?paid=true&session_id=... (see
+// handleReturnFromPayment below) — nothing here starts the game directly.
+async function startPaidMatch() {
+  try {
+    const body = {};
+    if (sessionPlayer) body.player_id = sessionPlayer.playerId;
+    const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/create-pong-checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('checkout creation failed');
+    const data = await r.json();
+    window.location.href = data.url;
+  } catch (e) {
+    alert('Could not start checkout. Please try again.');
+  }
+}
+
+// On return from Stripe, ?paid=true alone is trivially spoofable by editing the URL, so
+// this re-verifies the session_id directly against Stripe before unlocking gameplay.
+async function handleReturnFromPayment() {
+  const params = new URLSearchParams(location.search);
+  const isPaidReturn = params.get('paid') === 'true';
+  const sessionId = params.get('session_id');
+  if (isPaidReturn) history.replaceState({}, '', location.pathname);
+  if (!isPaidReturn || !sessionId) return;
+  try {
+    const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/verify-pong-payment?session_id=${encodeURIComponent(sessionId)}`);
+    const data = await r.json();
+    if (data.paid) startSeries();
   } catch (_) {}
 }
 
@@ -772,14 +826,14 @@ document.getElementById('btn-2p').onclick=()=>{
   document.getElementById('btn-1p').classList.remove('active');
 
 };
-document.getElementById('btn-start').onclick      = startSeries;
-document.getElementById('btn-next-match').onclick  = nextMatch;
+document.getElementById('btn-start').onclick      = startPaidMatch;
+document.getElementById('btn-next-match').onclick  = startPaidMatch;
 document.getElementById('btn-quit-series').onclick = ()=>{
   document.getElementById('match-result').style.display='none';
   document.getElementById('overlay').style.display='flex';
   gameRunning=false;
 };
-document.getElementById('btn-series-again').onclick = startSeries;
+document.getElementById('btn-series-again').onclick = startPaidMatch;
 document.getElementById('btn-series-menu').onclick  = ()=>{
   document.getElementById('series-result').style.display='none';
   document.getElementById('overlay').style.display='flex';
@@ -790,6 +844,7 @@ document.getElementById('btn-cashout').onclick = ()=>{
 
 window.addEventListener('resize', resize);
 verifySession();
+handleReturnFromPayment();
 resize(); initState(); updateHUD(); loop();
 </script>
 </body>
