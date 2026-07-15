@@ -40,12 +40,13 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font
 canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #000; }
 
 /* ── OVERLAYS ── */
-#overlay, #match-result, #series-result {
+#overlay, #match-result, #series-result, #loading-overlay {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   background: rgba(0,0,0,0.93); z-index: 10; border-radius: 8px; gap: 0;
 }
-#match-result, #series-result { display: none; }
+#match-result, #series-result, #loading-overlay { display: none; }
+#loading-overlay { color: #fff; font-size: 13px; letter-spacing: 1px; }
 
 /* ── MENU ── */
 #menu-title { font-size: 44px; letter-spacing: 14px; font-weight: 300; color: #fff; margin-bottom: 4px; }
@@ -138,6 +139,9 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
         Finish in profit to cash out
       </div>
     </div>
+
+    <!-- LOADING OVERLAY -->
+    <div id="loading-overlay">Checking your account...</div>
 
     <!-- MATCH RESULT OVERLAY -->
     <div id="match-result">
@@ -424,7 +428,11 @@ async function advanceTier(){
   matchNumber++;
 }
 async function startMatchWithCountdown() {
+  // Covers the HUD/player-bar in a loading state while verifySession() and
+  // get-match-config resolve, instead of briefly showing stale placeholder values.
+  document.getElementById('loading-overlay').style.display = 'flex';
   await advanceTier();
+  document.getElementById('loading-overlay').style.display = 'none';
   initState();
   let count = 3;
   cdMsg.textContent = count; cdMsg.style.opacity = '1';
