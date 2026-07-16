@@ -25,10 +25,6 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font
 #hud-diff  { font-size: 11px; color: rgba(255,255,255,0.45); }
 #hud-tier  { font-size: 12px; font-weight: 700; letter-spacing: 1px; margin-top: 1px; }
 
-/* ── PLAYER BAR ── */
-#player-bar { padding: 5px 14px; background: rgba(0,0,0,0.95); text-align: center; font-size: 10px; letter-spacing: 1px; color: rgba(255,255,255,0.35); }
-#player-bar.linked { color: #4CFF6C; }
-
 /* ── PHASE BAR ── */
 #phase-bar { display: flex; gap: 3px; padding: 5px 14px; background: rgba(0,0,0,0.8); }
 .phase-seg { height: 4px; border-radius: 2px; flex: 1; opacity: 0.25; transition: opacity 0.3s; }
@@ -40,17 +36,16 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font
 canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #000; }
 
 /* ── OVERLAYS ── */
-#overlay, #match-result, #series-result, #loading-overlay {
+#overlay, #match-result, #series-result {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   background: rgba(0,0,0,0.93); z-index: 10; border-radius: 8px; gap: 0;
 }
-#match-result, #series-result, #loading-overlay { display: none; }
-#loading-overlay { color: #fff; font-size: 13px; letter-spacing: 1px; }
+#match-result, #series-result { display: none; }
 
 /* ── MENU ── */
 #menu-title { font-size: 44px; letter-spacing: 14px; font-weight: 300; color: #fff; margin-bottom: 4px; }
-#menu-sub   { font-size: 11px; letter-spacing: 3px; color: #444; margin-bottom: 20px; }
+#menu-sub   { font-size: 12px; letter-spacing: 2px; color: #888; margin-bottom: 20px; }
 .menu-row   { display: flex; gap: 10px; margin-bottom: 10px; }
 .btn {
   background: transparent; border: 1px solid #333; color: #666;
@@ -65,7 +60,7 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
 .btn-green:hover  { background: #2ecc71; color: #111; border: none; }
 .btn-gold   { background: #FFD700; color: #111; border: none; padding: 12px 32px; font-size: 14px; font-weight: 600; letter-spacing: 1px; }
 .btn-red    { background: #FF4444; color: #fff; border: none; padding: 12px 32px; font-size: 14px; font-weight: 600; letter-spacing: 1px; }
-#menu-hint  { font-size: 10px; color: #2a2a2a; letter-spacing: 1px; text-align: center; line-height: 2; margin-top: 14px; }
+#menu-hint  { font-size: 14px; color: #ffffff; letter-spacing: 0.5px; text-align: center; line-height: 1.9; margin-top: 18px; }
 
 /* ── MATCH RESULT ── */
 #mr-change  { font-size: 52px; font-weight: 700; margin-bottom: 2px; }
@@ -102,17 +97,10 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
 <div id="gw">
   <div id="game-shell">
 
-    <!-- PLAYER BAR -->
-    <div id="player-bar">GUEST</div>
-
     <!-- HUD -->
     <div id="hud">
       <div id="hud-mid">
         <div id="hud-wins"><span style="color:#4CFF6C">YOU 0</span> <span style="color:rgba(255,255,255,0.4)">—</span> <span style="color:#FF4444">0 CPU</span></div>
-      </div>
-      <div id="hud-right">
-        <div id="hud-diff">Difficulty</div>
-        <div id="hud-tier" style="color:#4CFF6C">EASY</div>
       </div>
     </div>
 
@@ -125,23 +113,18 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
     <!-- MAIN MENU OVERLAY -->
     <div id="overlay">
       <div id="menu-title">PONG</div>
-      <div id="menu-sub">20 MATCH SERIES · $10 PER MATCH</div>
-      <div class="menu-row">
-        <button class="btn active" id="btn-1p">1 PLAYER</button>
-        <button class="btn" id="btn-2p">2 PLAYERS</button>
-      </div>
-
-      <button class="btn btn-primary" id="btn-start">Start Series</button>
+      <div id="menu-sub">SINGLE MATCH · $2.99 ENTRY · WIN $5</div>
+      <button class="btn btn-primary" id="btn-start">Start Match</button>
       <div id="menu-hint">
-        Drag finger / Arrow keys to move<br>
+        Drag finger or use ← → arrow keys to move<br>
         First to 5 points wins the match<br>
-        Pay $2.99 · Win $5 · One match per play<br>
-        Finish in profit to cash out
+        Win the match and you win $5<br>
+        <span style="color:#FFD700">TIP: Aim your shots at the power-ups —<br>only you can trigger them, the CPU can't</span><br>
+        <span style="font-size:12px;color:rgba(255,255,255,0.75)">
+        ❄️ Freeze CPU &nbsp;·&nbsp; 🔥 Fire Ball &nbsp;·&nbsp; 🔒 Shrink CPU
+        </span>
       </div>
     </div>
-
-    <!-- LOADING OVERLAY -->
-    <div id="loading-overlay">Checking your account...</div>
 
     <!-- MATCH RESULT OVERLAY -->
     <div id="match-result">
@@ -185,10 +168,10 @@ const WIN_PAYOUT    = 5.00;     // flat payout on any win (payout hook - backend
 // 4 skill-honest tiers (configurable — retune after playtest/simulation).
 // Difficulty comes ONLY from the fixed cycle below, never from a player's win history.
 const TIERS = {
-  EASY:   { label:'EASY',       color:'#4CFF6C', reactMin:12, reactMax:18, predErr:50, speed:0.65, miss:0.18 },
-  MEDIUM: { label:'MEDIUM',     color:'#FFD700', reactMin:5,  reactMax:8,  predErr:20, speed:0.88, miss:0.06 },
-  HARD:   { label:'HARD',       color:'#FF8C00', reactMin:1,  reactMax:3,  predErr:8,  speed:1.00, miss:0.02 },
-  SUPER:  { label:'SUPER HARD', color:'#FF4444', reactMin:0,  reactMax:1,  predErr:2,  speed:1.08, miss:0.005 },
+  EASY:   { label:'EASY',       color:'#4CFF6C', reactMin:0, reactMax:0, predErr:70, speed:0.48, miss:0.26, lead:0.00, shadow:0.45 },
+  MEDIUM: { label:'MEDIUM',     color:'#FFD700', reactMin:0, reactMax:0, predErr:50, speed:0.70, miss:0.18, lead:0.15, shadow:0.60 },
+  HARD:   { label:'HARD',       color:'#FF8C00', reactMin:0, reactMax:0, predErr:9,  speed:1.00, miss:0.02, lead:0.85, shadow:0.80 },
+  SUPER:  { label:'SUPER HARD', color:'#FF4444', reactMin:0, reactMax:0, predErr:2,  speed:1.08, miss:0.005, lead:1.00, shadow:0.85 },
 };
 // Fixed 12-match cycle: 2 Easy, 3 Medium, 4 Hard, 3 Super Hard (~33% avg win rate).
 const CYCLE_COMPOSITION = ['EASY','EASY','MEDIUM','MEDIUM','MEDIUM','HARD','HARD','HARD','HARD','SUPER']; // spec: 2E/3M/4H/1S (~40.5% win rate)
@@ -222,121 +205,6 @@ function nextTierName(){
 }
 function curTier(){ return TIERS[currentTierName]; }
 
-const MEDIASKILLS_ORIGIN = 'https://mediaskills.vercel.app';
-const SESSION_STORAGE_KEY = 'pong_session_player';
-let sessionPlayer = null; // { playerId, token, displayName, lastMatchNumber } once verified, else guest
-let sessionReady = null;  // promise that resolves once verifySession() has settled
-
-function showPlayerBar(displayName) {
-  const bar = document.getElementById('player-bar');
-  bar.textContent = displayName;
-  bar.classList.add('linked');
-}
-
-// Starting a paid match sends the browser away to Stripe and back, which fully reloads
-// the page and loses all JS state (including sessionPlayer) and the one-time verify-token
-// from the URL. So once a session is verified, it's cached in sessionStorage — get-match-config
-// and record-win don't care that the token is already "used" (they only check it was issued
-// to this player_id), so restoring from cache and skipping re-verification is safe.
-function verifySession() {
-  sessionReady = (async () => {
-    const cached = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (cached) {
-      try {
-        sessionPlayer = JSON.parse(cached);
-        showPlayerBar(sessionPlayer.displayName);
-        return;
-      } catch (_) {}
-    }
-    const params = new URLSearchParams(location.search);
-    const playerId = params.get('player_id');
-    const token = params.get('token');
-    if (!playerId || !token) return;
-    try {
-      const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/token?action=verify&token=${encodeURIComponent(token)}`);
-      if (!r.ok) return;
-      const data = await r.json();
-      sessionPlayer = { playerId: data.player_id, token, displayName: data.display_name, lastMatchNumber: null };
-      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionPlayer));
-      showPlayerBar(data.display_name);
-    } catch (_) {}
-  })();
-  return sessionReady;
-}
-
-// Fetches the server-assigned tier name for the upcoming match. Falls back to the local
-// cycle for guests (no verified session) or if the request fails. Awaits verifySession()
-// first so a fast click (Start Series before the token finishes verifying) can't race past
-// it and silently fall back to guest mode for a logged-in player.
-async function getServerTierName(){
-  if (sessionReady) await sessionReady;
-  if (!sessionPlayer) return nextTierName();
-  try {
-    const url = `${MEDIASKILLS_ORIGIN}/api/pong-game?action=match-config&player_id=${encodeURIComponent(sessionPlayer.playerId)}&token=${encodeURIComponent(sessionPlayer.token)}&game=pong`;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error('bad status');
-    const data = await r.json();
-    if (!TIERS[data.tier]) throw new Error('bad tier');
-    sessionPlayer.lastMatchNumber = data.match_number;
-    return data.tier;
-  } catch (_) {
-    return nextTierName();
-  }
-}
-
-// Credits the win payout server-side for a verified player. Guests have no account to
-// credit, so this is a no-op for them (matches the guest-fallback pattern used elsewhere).
-async function creditWin(){
-  if (!sessionPlayer || sessionPlayer.lastMatchNumber == null) return;
-  try {
-    await fetch(`${MEDIASKILLS_ORIGIN}/api/pong-game?action=record-win`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        player_id: sessionPlayer.playerId,
-        token: sessionPlayer.token,
-        game: 'pong',
-        match_number: sessionPlayer.lastMatchNumber
-      })
-    });
-  } catch (_) {}
-}
-
-// Sends the browser to Stripe Checkout for the $2.99 entry fee. Gameplay only resumes
-// once the browser comes back with a Stripe-confirmed ?paid=true&session_id=... (see
-// handleReturnFromPayment below) — nothing here starts the game directly.
-async function startPaidMatch() {
-  try {
-    const body = {};
-    if (sessionPlayer) body.player_id = sessionPlayer.playerId;
-    const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/create-pong-checkout`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (!r.ok) throw new Error('checkout creation failed');
-    const data = await r.json();
-    window.location.href = data.url;
-  } catch (e) {
-    alert('Could not start checkout. Please try again.');
-  }
-}
-
-// On return from Stripe, ?paid=true alone is trivially spoofable by editing the URL, so
-// this re-verifies the session_id directly against Stripe before unlocking gameplay.
-async function handleReturnFromPayment() {
-  const params = new URLSearchParams(location.search);
-  const isPaidReturn = params.get('paid') === 'true';
-  const sessionId = params.get('session_id');
-  if (isPaidReturn) history.replaceState({}, '', location.pathname);
-  if (!isPaidReturn || !sessionId) return;
-  try {
-    const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/verify-pong-payment?session_id=${encodeURIComponent(sessionId)}`);
-    const data = await r.json();
-    if (data.paid) startSeries();
-  } catch (_) {}
-}
-
 // Legacy display compatibility
 const TIER_LABELS = ['EASY','EASY+','MEDIUM','MEDIUM+','HARD','HARD+','SUPER HARD'];
 const TIER_COLORS = ['#4CFF6C','#4CFF6C','#FFD700','#FFD700','#FF8C00','#FF4444','#FF4444'];
@@ -347,11 +215,22 @@ let matchNumber = 0;  // display counter
 
 // ── GAME STATE ────────────────────────────────────────────────────────────────
 const BALL_SPEED = () => Math.min(W,H) * 0.022;
+// Serve ramp: ball launches at SERVE_START_MULT of full speed and accelerates to
+// full over SERVE_RAMP_FRAMES, so players can react instead of losing instant points.
+const SERVE_START_MULT = 0.35;   // starts at 35% speed
+const SERVE_RAMP_FRAMES = 75;    // ~1.25s at 60fps to reach full speed
 const SPEED_MAX  = () => Math.min(W,H) * 0.040;
 
 let mode = '1p', gameRunning = false, ballDelay = 0;
 let currentTier = 0;
 let aiReactionDelay = 0, aiTargetCache = null;
+let aiCommittedErr = 0;      // error sampled ONCE per ball approach (stops per-frame jitter)
+let aiLastBallDir = 0;       // detects a new approach (ball direction flip)
+let aiIdlePhase = 0;         // drives continuous anticipatory drift (never parked)
+let serveRamp = 0; // counts down while ball is accelerating from serve
+let ballLastHitter = null; // null until a paddle actually hits the ball (serve immunity)
+const POWERUP_BLACKOUT_MS = 5000;  // no power-ups for 5s after each serve
+let serveTime = 0;                 // timestamp of the current serve
 let state = { keys: {} }, touchState = {};
 
 // ── POWER-UPS ─────────────────────────────────────────────────────────────────
@@ -359,7 +238,6 @@ const POWERUP_TYPES = {
   ice:    { emoji:'❄️',  color:'#00cfff', duration:2500 },
   fire:   { emoji:'🔥',  color:'#ff6600', duration:3000 },
   shrink: { emoji:'🔒',  color:'#cc44ff', duration:4000 },
-  ghost:  { emoji:'👻',  color:'#aaffaa', duration:3000 },
 };
 const POWERUP_KEYS = Object.keys(POWERUP_TYPES);
 let powerup = null, activeEffects = {}, bannerTimer = null;
@@ -389,9 +267,6 @@ function updateHUD() {
       '<span style="color:rgba(255,255,255,0.4)">—</span> '+
       '<span style="color:#FF4444">'+state.p2.score+' CPU</span>';
   }
-  document.getElementById('hud-tier').textContent  = TIER_LABELS[tier];
-  document.getElementById('hud-tier').style.color  = color;
-  document.getElementById('hud-diff').textContent  = 'Difficulty';
 }
 
 function buildPhaseBar(){ /* removed - no phase bar in single-match */ }
@@ -411,7 +286,7 @@ function initState() {
   state = {
     ball: { x:W/2, y:H/2, vx:0, vy:0, _pendingDir:Math.random()>0.5, _pendingSp:BALL_SPEED() },
     p1: { x:0, y:0, score:0, name:'PLAYER 1' },
-    p2: { x:0, y:0, score:0, name: mode==='2p' ? 'PLAYER 2' : 'CPU' },
+    p2: { x:0, y:0, score:0, name:'CPU' },
     keys: {}
   };
   touchState = {}; activeEffects = {}; powerup = null;
@@ -422,17 +297,13 @@ function initState() {
 }
 
 // ── COUNTDOWN THEN START ──────────────────────────────────────────────────────
-async function advanceTier(){
-  currentTierName = await getServerTierName();
+function advanceTier(){
+  currentTierName = nextTierName();
   currentTier = tierNameToIdx(currentTierName);
   matchNumber++;
 }
-async function startMatchWithCountdown() {
-  // Covers the HUD/player-bar in a loading state while verifySession() and
-  // get-match-config resolve, instead of briefly showing stale placeholder values.
-  document.getElementById('loading-overlay').style.display = 'flex';
-  await advanceTier();
-  document.getElementById('loading-overlay').style.display = 'none';
+function startMatchWithCountdown() {
+  advanceTier();
   initState();
   let count = 3;
   cdMsg.textContent = count; cdMsg.style.opacity = '1';
@@ -445,11 +316,14 @@ async function startMatchWithCountdown() {
       clearInterval(t);
       cdMsg.style.opacity = '0';
       ballDelay = 0;
-      // Launch ball
-      const sp = BALL_SPEED();
+      // Launch ball (slow, then ramps up so the player can react)
+      const sp = BALL_SPEED() * SERVE_START_MULT;
       const dir = state.ball._pendingDir;
       state.ball.vx = sp * (Math.random()>0.5?1:-1);
       state.ball.vy = sp * (dir?1:-1);
+      serveRamp = SERVE_RAMP_FRAMES;
+      ballLastHitter = null;
+      serveTime = Date.now();
     }
   }, 1000);
 }
@@ -458,6 +332,9 @@ async function startMatchWithCountdown() {
 function resetBall(towardsP1) {
   state.ball.x = W/2; state.ball.y = H/2;
   state.ball.vx = 0; state.ball.vy = 0;
+  ballLastHitter = null; // serve immunity: no powerups until a paddle hits it
+  serveTime = Date.now();
+  powerup = null;        // clear any power-up on screen at the restart
   delete activeEffects.ball;
   ballDelay = 90;
   state.ball._pendingDir = towardsP1;
@@ -467,9 +344,17 @@ function resetBall(towardsP1) {
 // ── POWER-UPS ─────────────────────────────────────────────────────────────────
 function schedulePowerup() {
   if (powerup) return;
-  setTimeout(() => { if (gameRunning) spawnPowerup(); }, 5000 + Math.random()*6000);
+  // earliest spawn is after the blackout window, plus a random extra delay
+  setTimeout(() => { if (gameRunning) spawnPowerup(); }, POWERUP_BLACKOUT_MS + 300 + Math.random()*1500);
 }
 function spawnPowerup() {
+  // Never spawn (or even show) a power-up during the 5s blackout after a serve.
+  const sinceServe = Date.now() - serveTime;
+  if (sinceServe < POWERUP_BLACKOUT_MS) {
+    // try again once the blackout has passed
+    setTimeout(() => { if (gameRunning) spawnPowerup(); }, POWERUP_BLACKOUT_MS - sinceServe + 50);
+    return;
+  }
   const type = POWERUP_KEYS[Math.floor(Math.random()*POWERUP_KEYS.length)];
   const margin = Math.min(W,H)*0.12;
   powerup = { type, pulse:0, life:300,
@@ -479,9 +364,16 @@ function spawnPowerup() {
 }
 function checkPowerupCollision() {
   if (!powerup) return;
+  // BLACKOUT: no power-ups at all for the first 5s of every point/game.
+  if (Date.now() - serveTime < POWERUP_BLACKOUT_MS) return;
+  // SERVE IMMUNITY: also never trigger on a served ball no paddle has hit.
+  if (!ballLastHitter) return;
+  // BY DESIGN: only the player can trigger power-ups (a skill mechanic they aim for).
+  // CPU shots pass straight through them.
+  if (ballLastHitter !== 'p1') return;
   const b = state.ball;
   if (Math.hypot(b.x-powerup.x, b.y-powerup.y) < BALL_R + powerup.r) {
-    const lastHitter = b.vy > 0 ? 'p2' : 'p1';
+    const lastHitter = ballLastHitter;           // the REAL hitter, not a guess
     const victim = lastHitter==='p1' ? 'p2' : 'p1';
     applyPowerup(powerup.type, lastHitter, victim);
     powerup = null; schedulePowerup();
@@ -492,10 +384,9 @@ function applyPowerup(type, bene, victim) {
   const expires = Date.now() + def.duration;
   const vName = victim==='p1' ? state.p1.name : state.p2.name;
   if (type==='ice')    { activeEffects[victim]={type:'frozen',expires}; activeEffects.ball={type:'ice',expires}; showBanner(`${def.emoji} ${vName} FROZEN!`, def.color); }
-  else if (type==='fire')   { activeEffects.ball={type:'fire',expires}; const spd=Math.min(Math.hypot(state.ball.vx,state.ball.vy)*1.6,SPEED_MAX()*1.3); const a=Math.atan2(state.ball.vy,state.ball.vx); state.ball.vx=Math.cos(a)*spd; state.ball.vy=Math.sin(a)*spd; showBanner(`${def.emoji} FIRE BALL!`, def.color); }
+  else if (type==='fire')   { activeEffects.ball={type:'fire',expires}; const spd=Math.min(Math.hypot(state.ball.vx,state.ball.vy)*1.3,SPEED_MAX()*1.05); const a=Math.atan2(state.ball.vy,state.ball.vx); state.ball.vx=Math.cos(a)*spd; state.ball.vy=Math.sin(a)*spd; showBanner(`${def.emoji} FIRE BALL!`, def.color); }
   else if (type==='shrink') { activeEffects[victim]={type:'shrink',expires}; showBanner(`${def.emoji} ${vName} SHRUNK!`, def.color); }
   else if (type==='big')    { activeEffects.ball={type:'big',expires}; showBanner(`${def.emoji} BIG BALL!`, def.color); }
-  else if (type==='ghost')  { activeEffects.ball={type:'ghost',expires}; showBanner(`${def.emoji} GHOST BALL!`, def.color); }
 }
 function showBanner(text, color) {
   banner.textContent=text; banner.style.color=color; banner.style.opacity='1';
@@ -539,7 +430,6 @@ function tickObstacles() {
 }
 function checkObstacleCollisions() {
   const b=state.ball;
-  if(activeEffects.ball&&activeEffects.ball.type==='ghost') return;
   for(const o of obstacles){
     if(b.x+BALL_R>o.x&&b.x-BALL_R<o.x+o.w&&b.y+BALL_R>o.y&&b.y-BALL_R<o.y+o.h){
       const oL=(b.x+BALL_R)-o.x,oR=(o.x+o.w)-(b.x-BALL_R);
@@ -558,13 +448,35 @@ function clamp(p){
 function ballHitsPaddle(p){
   const b=state.ball, len=getPaddleLen(p);
   const bigR = BALL_R;
-  return b.y+bigR>p.y&&b.y-bigR<p.y+PADDLE_SHORT&&b.x+bigR>p.x&&b.x-bigR<p.x+len;
+  // Direct overlap this frame
+  const overlapNow = b.y+bigR>p.y && b.y-bigR<p.y+PADDLE_SHORT && b.x+bigR>p.x && b.x-bigR<p.x+len;
+  if (overlapNow) return true;
+  // SWEPT CHECK: a fast ball can jump clean over the thin paddle between frames.
+  // Walk the path the ball travelled this frame and test each sub-step.
+  const speed = Math.hypot(b.vx, b.vy);
+  if (speed <= PADDLE_SHORT) return false;          // slow enough, no tunneling possible
+  const steps = Math.ceil(speed / Math.max(2, PADDLE_SHORT * 0.5));
+  const px = b.x - b.vx, py = b.y - b.vy;           // previous position
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const sx = px + b.vx * t, sy = py + b.vy * t;
+    if (sy+bigR>p.y && sy-bigR<p.y+PADDLE_SHORT && sx+bigR>p.x && sx-bigR<p.x+len) {
+      b.x = sx; b.y = sy;                            // snap to the contact point
+      return true;
+    }
+  }
+  return false;
 }
 function deflectOffPaddle(paddle, isP1){
   const b=state.ball, smax=SPEED_MAX(), len=getPaddleLen(paddle);
   const rel=(b.x-(paddle.x+len/2))/(len/2);
   const angle=rel*(Math.PI/4);
-  const spd=Math.min(Math.hypot(b.vx,b.vy)+0.3, smax);
+  // Once the ball is returned, the serve ramp is over — play at normal speed.
+  serveRamp = 0;
+  ballLastHitter = isP1 ? 'p1' : 'p2';  // a real paddle hit - powerups now live
+  const cur = Math.hypot(b.vx,b.vy);
+  const base = Math.max(cur, BALL_SPEED());   // never return slower than base speed
+  const spd=Math.min(base+0.3, smax);
   b.vx=Math.sin(angle)*spd;
   b.vy=Math.cos(angle)*spd*(isP1?-1:1);
   b.y=isP1?paddle.y-BALL_R-1:paddle.y+PADDLE_SHORT+BALL_R+1;
@@ -586,38 +498,51 @@ function moveAI() {
   const p = state.p2;
   const b = state.ball;
   const len = getPaddleLen(p);
-  const T = curTier(); // tier config: reactMin/Max, predErr, speed, miss
+  const T = curTier();
 
   const pspd = Math.min(W,H) * 0.040 * T.speed;
+  const ballComing = b.vy < 0;
+  const dirNow = ballComing ? -1 : 1;
 
-  // Reaction delay: drift slowly toward last target while "reacting"
-  if (aiReactionDelay > 0) {
-    aiReactionDelay--;
-    if (aiTargetCache !== null) {
-      const diff = aiTargetCache - p.x;
-      if (Math.abs(diff) > 1) p.x += Math.sign(diff) * Math.min(pspd * 0.5, Math.abs(diff));
-    }
-    return;
+  // Commit ONE error per rally leg (prevents per-frame jitter)
+  if (dirNow !== aiLastBallDir) {
+    aiLastBallDir = dirNow;
+    aiCommittedErr = (Math.random()-0.5) * 2 * T.predErr;
+    if (Math.random() < T.miss) aiCommittedErr += (Math.random()-0.5) * len * 2.2;
+    aiIdlePhase = Math.random() * Math.PI * 2; // fresh idle sway each leg
   }
 
-  const ballComing = b.vy < 0; // toward AI (top)
+  // Always-anticipating target. The paddle is NEVER parked: even when the ball is
+  // moving away it keeps tracking/repositioning like a real player would.
   let target;
+  const land = predictLanding();
 
   if (!ballComing) {
-    const slack = len * (0.3 + T.predErr/60);
-    target = W/2 - len/2 + (Math.random()-0.5) * slack;
+    // Ball moving away: shadow the ball's x loosely and sway slightly, as a player
+    // does while reading the opponent. Blend between ball-x and centre.
+    const sh = (T.shadow!==undefined) ? T.shadow : 0.80;
+    const anticipate = b.x * sh + (W/2) * (1-sh);   // tier-based ball shadowing
+    aiIdlePhase += 0.075;
+    const sway = Math.sin(aiIdlePhase) * len * 0.85;   // pronounced continuous drift
+    target = anticipate - len/2 + sway + aiCommittedErr * 0.35;
   } else {
-    let land = (T.predErr > 30) ? b.x : predictLanding();
-    const err = (Math.random()-0.5) * 2 * T.predErr;
-    target = land - len/2 + err;
-    if (Math.random() < T.miss) target += (Math.random()-0.5) * len * 2.5;
+    // Ball incoming: read it. 'lead' = how much it trusts the true landing spot.
+    const chase = b.x;
+    const aim = chase + (land - chase) * T.lead;
+    // small continuous micro-adjust so it never looks frozen while waiting
+    aiIdlePhase += 0.09;
+    const settle = Math.sin(aiIdlePhase) * len * 0.22;
+    target = aim - len/2 + aiCommittedErr + settle;
   }
 
-  aiTargetCache = target;
-  aiReactionDelay = T.reactMin + Math.floor(Math.random() * (T.reactMax - T.reactMin + 1));
+  // Keep target on-court
+  target = Math.max(0, Math.min(W - len, target));
 
+  // Smooth, continuous movement. Ease toward target so it accelerates/decelerates
+  // like a hand-controlled paddle rather than snapping.
   const diff = target - p.x;
-  if (Math.abs(diff) > 1) p.x += Math.sign(diff) * Math.min(pspd, Math.abs(diff));
+  const step = Math.sign(diff) * Math.min(pspd, Math.abs(diff) * 0.28 + pspd * 0.12);
+  if (Math.abs(diff) > 0.5) p.x += step;
 }
 
 
@@ -631,9 +556,11 @@ function update(){
   if(ballDelay>0){
     ballDelay--;
     if(ballDelay===0&&b.vx===0&&b.vy===0){
-      const sp=b._pendingSp||BALL_SPEED();
+      const sp=(b._pendingSp||BALL_SPEED())*SERVE_START_MULT;
       b.vx=sp*(Math.random()>0.5?1:-1);
       b.vy=sp*(b._pendingDir?1:-1);
+      serveRamp = SERVE_RAMP_FRAMES;
+      serveTime = Date.now();
     }
     if(!isFrozen(p1)){
       if(touchState.p1x!==undefined) p1.x=touchState.p1x-getPaddleLen(p1)/2;
@@ -644,6 +571,8 @@ function update(){
     return;
   }
 
+  // (serve stays slow until first paddle hit; deflectOffPaddle restores full speed)
+
   b.x+=b.vx; b.y+=b.vy;
   checkObstacleCollisions(); checkPowerupCollision();
   if(powerup){powerup.pulse++;powerup.life--;if(powerup.life<=0){powerup=null;schedulePowerup();}}
@@ -653,8 +582,8 @@ function update(){
   if(ballHitsPaddle(p1)) deflectOffPaddle(p1,true);
   if(ballHitsPaddle(p2)) deflectOffPaddle(p2,false);
 
-  if(b.y>H+20){p2.score++;checkMatchPoint(false);resetBall(false);schedulePowerup();}
-  if(b.y<-20) {p1.score++;checkMatchPoint(true); resetBall(true); schedulePowerup();}
+  if(b.y>H+20){p2.score++;updateHUD();checkMatchPoint(false);resetBall(false);schedulePowerup();}
+  if(b.y<-20) {p1.score++;updateHUD();checkMatchPoint(true); resetBall(true); schedulePowerup();}
 
   if(!isFrozen(p1)){
     if(touchState.p1x!==undefined) p1.x=touchState.p1x-getPaddleLen(p1)/2;
@@ -676,7 +605,6 @@ function checkMatchPoint(p1won){
   if(p.score>=POINTS_TO_WIN){
     gameRunning=false;
     updateHUD();
-    if (p1won) creditWin();
     setTimeout(()=>showMatchResult(p1won), 400);
   }
 }
@@ -693,7 +621,7 @@ function showMatchResult(p1won){
   balEl.style.color = p1won ? '#4CFF6C' : 'rgba(255,255,255,0.5)';
 
   document.getElementById('mr-score').textContent = state.p1.score+' — '+state.p2.score;
-  document.getElementById('mr-match').textContent = 'Difficulty: '+currentTierName;
+  document.getElementById('mr-match').textContent = '';
   document.getElementById('btn-next-match').textContent = 'Play Again ($'+ENTRY_FEE.toFixed(2)+')';
 
   const tally=document.getElementById('mr-tally'); if(tally) tally.style.display='none';
@@ -751,13 +679,11 @@ function draw(){
   // Ball
   const b=state.ball;
   const bigR = BALL_R;
-  const isGhost=activeEffects.ball&&activeEffects.ball.type==='ghost';
   const isFire =activeEffects.ball&&activeEffects.ball.type==='fire';
   const isIce  =activeEffects.ball&&activeEffects.ball.type==='ice';
   ctx.beginPath(); ctx.arc(b.x,b.y,bigR,0,Math.PI*2);
   if(isFire)      {ctx.fillStyle='#ff6600';ctx.shadowColor='#ff4400';ctx.shadowBlur=14;}
   else if(isIce)  {ctx.fillStyle='#00cfff';ctx.shadowColor='#00aaff';ctx.shadowBlur=12;}
-  else if(isGhost){ctx.fillStyle='rgba(180,255,180,0.45)';ctx.shadowBlur=0;}
   else            {ctx.fillStyle='#fff';ctx.shadowBlur=0;}
   ctx.fill(); ctx.shadowBlur=0;
 
@@ -822,21 +748,6 @@ canvas.addEventListener('touchmove', applyTouch,{passive:false});
 canvas.addEventListener('touchend',  e=>{e.preventDefault();applyTouch(e);},{passive:false});
 
 // ── BUTTONS ───────────────────────────────────────────────────────────────────
-document.getElementById('btn-1p').onclick=()=>{
-  mode='1p';
-  document.getElementById('btn-1p').classList.add('active');
-  document.getElementById('btn-2p').classList.remove('active');
-
-};
-document.getElementById('btn-2p').onclick=()=>{
-  mode='2p';
-  document.getElementById('btn-2p').classList.add('active');
-  document.getElementById('btn-1p').classList.remove('active');
-
-};
-// Stripe checkout is bypassed for now — we're only testing gameplay, not payments.
-// To re-enable the paywall, swap these three back to startPaidMatch and uncomment
-// the handleReturnFromPayment() call below.
 document.getElementById('btn-start').onclick      = startSeries;
 document.getElementById('btn-next-match').onclick  = nextMatch;
 document.getElementById('btn-quit-series').onclick = ()=>{
@@ -854,8 +765,6 @@ document.getElementById('btn-cashout').onclick = ()=>{
 };
 
 window.addEventListener('resize', resize);
-verifySession();
-// handleReturnFromPayment(); // re-enable once Stripe checkout is back in the loop
 resize(); initState(); updateHUD(); loop();
 </script>
 </body>
