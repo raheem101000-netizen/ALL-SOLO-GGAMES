@@ -891,14 +891,13 @@ document.getElementById('btn-start').onclick = () => {
 };
 document.getElementById('btn-next-match').onclick  = nextMatch;
 document.getElementById('btn-quit-series').onclick = ()=>{
-  document.getElementById('match-result').style.display='none';
-  document.getElementById('overlay').style.display='flex';
   gameRunning=false;
+  // Return the player to the MediaSkills hub (where they picked the game).
+  window.location.href = MEDIASKILLS_ORIGIN;
 };
 document.getElementById('btn-series-again').onclick = startSeries;
 document.getElementById('btn-series-menu').onclick  = ()=>{
-  document.getElementById('series-result').style.display='none';
-  document.getElementById('overlay').style.display='flex';
+  window.location.href = MEDIASKILLS_ORIGIN;  // back to MediaSkills hub
 };
 document.getElementById('btn-cashout').onclick = ()=>{
   alert('Payout handled at match end in single-match model.');
