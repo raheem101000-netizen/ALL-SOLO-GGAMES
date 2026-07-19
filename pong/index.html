@@ -7,28 +7,25 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: none; }
 html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: -apple-system, 'Segoe UI', sans-serif; }
-
 #gw { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; }
 #game-shell { position: relative; width: 100%; max-width: 420px; }
 
 /* ── HUD BAR ── */
-#hud {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 14px; background: rgba(0,0,0,0.95);
-  border-radius: 8px 8px 0 0;
-}
+#player-bar { padding: 5px 14px; background: rgba(0,0,0,0.95); text-align: center; font-size: 10px; letter-spacing: 1px; color: rgba(255,255,255,0.35); }
+#player-bar.linked { color: #4CFF6C; }
+#hud { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: rgba(0,0,0,0.95); border-radius: 8px 8px 0 0; }
 #hud-balance { font-size: 20px; font-weight: 700; font-family: monospace; color: #4CFF6C; }
 #hud-mid { text-align: center; }
 #hud-match { font-size: 11px; color: rgba(255,255,255,0.45); }
-#hud-wins  { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7); margin-top: 1px; }
+#hud-wins { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7); margin-top: 1px; }
 #hud-right { text-align: right; }
-#hud-diff  { font-size: 11px; color: rgba(255,255,255,0.45); }
-#hud-tier  { font-size: 12px; font-weight: 700; letter-spacing: 1px; margin-top: 1px; }
+#hud-diff { font-size: 11px; color: rgba(255,255,255,0.45); }
+#hud-tier { font-size: 12px; font-weight: 700; letter-spacing: 1px; margin-top: 1px; }
 
 /* ── PHASE BAR ── */
 #phase-bar { display: flex; gap: 3px; padding: 5px 14px; background: rgba(0,0,0,0.8); }
 .phase-seg { height: 4px; border-radius: 2px; flex: 1; opacity: 0.25; transition: opacity 0.3s; }
-.phase-seg.done    { opacity: 1; }
+.phase-seg.done { opacity: 1; }
 .phase-seg.current { opacity: 1; animation: pseg 1s infinite; }
 @keyframes pseg { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
@@ -37,59 +34,52 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
 
 /* ── OVERLAYS ── */
 #overlay, #match-result, #series-result {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
   background: rgba(0,0,0,0.93); z-index: 10; border-radius: 8px; gap: 0;
 }
 #match-result, #series-result { display: none; }
 
 /* ── MENU ── */
 #menu-title { font-size: 44px; letter-spacing: 14px; font-weight: 300; color: #fff; margin-bottom: 4px; }
-#menu-sub   { font-size: 12px; letter-spacing: 2px; color: #888; margin-bottom: 20px; }
-.menu-row   { display: flex; gap: 10px; margin-bottom: 10px; }
-.btn {
-  background: transparent; border: 1px solid #333; color: #666;
-  padding: 10px 20px; font-family: monospace; font-size: 12px;
-  cursor: pointer; letter-spacing: 2px; border-radius: 4px; transition: all 0.15s;
-}
+#menu-sub { font-size: 12px; letter-spacing: 2px; color: #888; margin-bottom: 20px; }
+.menu-row { display: flex; gap: 10px; margin-bottom: 10px; }
+.btn { background: transparent; border: 1px solid #333; color: #666; padding: 10px 20px; font-family: monospace; font-size: 12px; cursor: pointer; letter-spacing: 2px; border-radius: 4px; transition: all 0.15s; }
 .btn:active { transform: scale(0.96); }
 .btn.active, .btn:hover { border-color: #fff; color: #fff; }
 .btn-primary { background: #4CFF6C; color: #111; border: none; padding: 13px 40px; font-size: 14px; font-weight: 600; margin-top: 6px; letter-spacing: 1px; }
 .btn-primary:hover { background: #2ecc71; color: #111; border: none; }
-.btn-green  { background: #4CFF6C; color: #111; border: none; padding: 12px 32px; font-size: 14px; font-weight: 600; letter-spacing: 1px; }
-.btn-green:hover  { background: #2ecc71; color: #111; border: none; }
-.btn-gold   { background: #FFD700; color: #111; border: none; padding: 12px 32px; font-size: 14px; font-weight: 600; letter-spacing: 1px; }
-.btn-red    { background: #FF4444; color: #fff; border: none; padding: 12px 32px; font-size: 14px; font-weight: 600; letter-spacing: 1px; }
-#menu-hint  { font-size: 14px; color: #ffffff; letter-spacing: 0.5px; text-align: center; line-height: 1.9; margin-top: 18px; }
+.btn-green { background: #4CFF6C; color: #111; border: none; padding: 12px 32px; font-size: 14px; font-weight: 600; letter-spacing: 1px; }
+.btn-green:hover { background: #2ecc71; color: #111; border: none; }
+.btn-gold { background: #FFD700; color: #111; border: none; padding: 12px 32px; font-size: 14px; font-weight: 600; letter-spacing: 1px; }
+.btn-red { background: #FF4444; color: #fff; border: none; padding: 12px 32px; font-size: 14px; font-weight: 600; letter-spacing: 1px; }
+#menu-hint { font-size: 14px; color: #ffffff; letter-spacing: 0.5px; text-align: center; line-height: 1.9; margin-top: 18px; }
 
 /* ── MATCH RESULT ── */
-#mr-change  { font-size: 52px; font-weight: 700; margin-bottom: 2px; }
-#mr-score   { font-size: 13px; color: rgba(255,255,255,0.4); margin-bottom: 10px; letter-spacing: 1px; }
+#mr-change { font-size: 52px; font-weight: 700; margin-bottom: 2px; }
+#mr-score { font-size: 13px; color: rgba(255,255,255,0.4); margin-bottom: 10px; letter-spacing: 1px; }
 #mr-balance { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-#mr-match   { font-size: 11px; color: rgba(255,255,255,0.35); margin-bottom: 6px; letter-spacing: 1px; }
-#mr-tally   { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; max-width: 280px; margin-bottom: 18px; }
+#mr-match { font-size: 11px; color: rgba(255,255,255,0.35); margin-bottom: 6px; letter-spacing: 1px; }
+#mr-tally { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; max-width: 280px; margin-bottom: 18px; }
 .tdot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #222; flex-shrink: 0; }
 .tdot.p1 { background: #4CFF6C; }
 .tdot.ai { background: #FF4444; }
 
 /* ── SERIES END ── */
-#se-title   { font-size: 28px; font-weight: 500; margin-bottom: 4px; }
-#se-payout  { font-size: 56px; font-weight: 700; margin-bottom: 2px; }
-#se-sub     { font-size: 13px; color: rgba(255,255,255,0.45); margin-bottom: 4px; }
+#se-title { font-size: 28px; font-weight: 500; margin-bottom: 4px; }
+#se-payout { font-size: 56px; font-weight: 700; margin-bottom: 2px; }
+#se-sub { font-size: 13px; color: rgba(255,255,255,0.45); margin-bottom: 4px; }
 #se-summary { font-size: 11px; color: rgba(255,255,255,0.3); margin-bottom: 6px; }
-#se-tally   { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; max-width: 280px; margin-bottom: 20px; }
+#se-tally { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; max-width: 280px; margin-bottom: 20px; }
 
 /* ── BANNERS ── */
 #powerup-banner {
   position: absolute; top: 46%; left: 50%; transform: translate(-50%,-50%);
-  font-size: 13px; letter-spacing: 2px; color: #fff; pointer-events: none;
-  opacity: 0; transition: opacity 0.2s; z-index: 5; text-align: center;
-  text-shadow: 0 0 10px currentColor; white-space: nowrap;
+  font-size: 13px; letter-spacing: 2px; color: #fff; pointer-events: none; opacity: 0;
+  transition: opacity 0.2s; z-index: 5; text-align: center; text-shadow: 0 0 10px currentColor; white-space: nowrap;
 }
 #cd-msg {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-  color: #fff; font-size: 64px; font-weight: 300; pointer-events: none;
-  opacity: 0; z-index: 9; font-family: monospace;
+  color: #fff; font-size: 64px; font-weight: 300; pointer-events: none; opacity: 0; z-index: 9; font-family: monospace;
 }
 </style>
 </head>
@@ -98,6 +88,7 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
   <div id="game-shell">
 
     <!-- HUD -->
+    <div id="player-bar">GUEST</div>
     <div id="hud">
       <div id="hud-mid">
         <div id="hud-wins"><span style="color:#4CFF6C">YOU 0</span> <span style="color:rgba(255,255,255,0.4)">—</span> <span style="color:#FF4444">0 CPU</span></div>
@@ -106,7 +97,6 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
 
     <!-- CANVAS -->
     <canvas id="canvas"></canvas>
-
     <div id="powerup-banner"></div>
     <div id="cd-msg"></div>
 
@@ -121,7 +111,7 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
         Win the match and you win $5<br>
         <span style="color:#FFD700">TIP: Aim your shots at the power-ups —<br>only you can trigger them, the CPU can't</span><br>
         <span style="font-size:12px;color:rgba(255,255,255,0.75)">
-        ❄️ Freeze CPU &nbsp;·&nbsp; 🔥 Fire Ball &nbsp;·&nbsp; 🔒 Shrink CPU
+          ❄️ Freeze CPU &nbsp;·&nbsp; 🔥 Fire Ball &nbsp;·&nbsp; 🔒 Shrink CPU
         </span>
       </div>
     </div>
@@ -153,17 +143,16 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
 </div>
 
 <script>
-const canvas  = document.getElementById('canvas');
-const ctx     = canvas.getContext('2d');
-const banner  = document.getElementById('powerup-banner');
-const cdMsg   = document.getElementById('cd-msg');
-
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const banner = document.getElementById('powerup-banner');
+const cdMsg = document.getElementById('cd-msg');
 let W, H, PADDLE_LONG, PADDLE_SHORT, BALL_R;
 
 // ── SINGLE-MATCH CONFIG + DIFFICULTY CYCLE ────────────────────────────────────
-const POINTS_TO_WIN = 5;        // first to 5 wins the match
-const ENTRY_FEE     = 2.99;     // paid per match (payment hook - backend)
-const WIN_PAYOUT    = 5.00;     // flat payout on any win (payout hook - backend)
+const POINTS_TO_WIN = 5;      // first to 5 wins the match
+const ENTRY_FEE     = 2.99;   // paid per match (payment hook - backend)
+const WIN_PAYOUT    = 5.00;   // flat payout on any win (payout hook - backend)
 
 // 4 skill-honest tiers (configurable — retune after playtest/simulation).
 // Difficulty comes ONLY from the fixed cycle below, never from a player's win history.
@@ -171,8 +160,9 @@ const TIERS = {
   EASY:   { label:'EASY',       color:'#4CFF6C', reactMin:0, reactMax:0, predErr:70, speed:0.48, miss:0.26, lead:0.00, shadow:0.45 },
   MEDIUM: { label:'MEDIUM',     color:'#FFD700', reactMin:0, reactMax:0, predErr:50, speed:0.70, miss:0.18, lead:0.15, shadow:0.60 },
   HARD:   { label:'HARD',       color:'#FF8C00', reactMin:0, reactMax:0, predErr:9,  speed:1.00, miss:0.02, lead:0.85, shadow:0.80 },
-  SUPER:  { label:'SUPER HARD', color:'#FF4444', reactMin:0, reactMax:0, predErr:2,  speed:1.08, miss:0.005, lead:1.00, shadow:0.85 },
+  SUPER:  { label:'SUPER HARD', color:'#FF4444', reactMin:0, reactMax:0, predErr:2,  speed:1.08, miss:0.005,lead:1.00, shadow:0.85 },
 };
+
 // Fixed 12-match cycle: 2 Easy, 3 Medium, 4 Hard, 3 Super Hard (~33% avg win rate).
 const CYCLE_COMPOSITION = ['EASY','EASY','MEDIUM','MEDIUM','MEDIUM','HARD','HARD','HARD','HARD','SUPER']; // spec: 2E/3M/4H/1S (~40.5% win rate)
 
@@ -188,15 +178,113 @@ function buildCycleOrder(){
   const seq = ['EASY']; // Game 1 locked Easy
   let li=0, si=0;
   for(let pos=2; pos<=10; pos++){
-    if(pos%2===0){ seq.push(safe[si++]); }   // even slots = safe
-    else { seq.push(liability[li++]); }        // odd slots = liability
+    if(pos%2===0){ seq.push(safe[si++]); }      // even slots = safe
+    else { seq.push(liability[li++]); }         // odd slots = liability
   }
   return seq;
 }
-
 let cycleOrder = buildCycleOrder();
 let cyclePos = 0;
 let currentTierName = 'EASY';
+
+// ── MEDIASKILLS BACKEND INTEGRATION ───────────────────────────────────────────
+const MEDIASKILLS_ORIGIN = 'https://mediaskills.vercel.app';
+const SESSION_STORAGE_KEY = 'pong_session_player';
+let sessionPlayer = null;
+let sessionReady = null;
+
+function showPlayerBar(displayName){
+  const bar = document.getElementById('player-bar');
+  if(!bar) return;
+  bar.textContent = displayName;
+  bar.classList.add('linked');
+}
+
+function verifySession(){
+  sessionReady = (async () => {
+    const cached = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if(cached){
+      try {
+        sessionPlayer = JSON.parse(cached);
+        showPlayerBar(sessionPlayer.displayName);
+        return;
+      } catch(_){}
+    }
+    const params = new URLSearchParams(location.search);
+    const playerId = params.get('player_id');
+    const token = params.get('token');
+    if(!playerId || !token) return;
+    try {
+      const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/token?action=verify&token=${encodeURIComponent(token)}`);
+      if(!r.ok) return;
+      const data = await r.json();
+      sessionPlayer = { playerId: data.player_id, token, displayName: data.display_name, lastMatchNumber: null };
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionPlayer));
+      showPlayerBar(data.display_name);
+    } catch(_){}
+  })();
+  return sessionReady;
+}
+
+// Server-assigned tier (per-player cycle persistence). Falls back to local cycle for guests.
+async function getServerTierName(){
+  if(sessionReady) await sessionReady;
+  if(!sessionPlayer) return nextTierName();
+  try {
+    const url = `${MEDIASKILLS_ORIGIN}/api/pong-game?action=match-config&player_id=${encodeURIComponent(sessionPlayer.playerId)}&token=${encodeURIComponent(sessionPlayer.token)}&game=pong`;
+    const r = await fetch(url);
+    if(!r.ok) throw new Error('bad status');
+    const data = await r.json();
+    if(!TIERS[data.tier]) throw new Error('bad tier');
+    sessionPlayer.lastMatchNumber = data.match_number;
+    return data.tier;
+  } catch(_){
+    return nextTierName();
+  }
+}
+
+async function creditWin(){
+  if(!sessionPlayer || sessionPlayer.lastMatchNumber == null) return;
+  try {
+    await fetch(`${MEDIASKILLS_ORIGIN}/api/pong-game?action=record-win`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ player_id: sessionPlayer.playerId, token: sessionPlayer.token, game:'pong', match_number: sessionPlayer.lastMatchNumber })
+    });
+  } catch(_){}
+}
+
+// Sends browser to Stripe Checkout for the $2.99 entry. Game resumes only on verified return.
+async function startPaidMatch(){
+  try {
+    const body = {};
+    if(sessionPlayer) body.player_id = sessionPlayer.playerId;
+    const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/create-pong-checkout`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    if(!r.ok) throw new Error('checkout creation failed');
+    const data = await r.json();
+    window.location.href = data.url;
+  } catch(e){
+    alert('Could not start checkout. Please try again.');
+  }
+}
+
+// On return from Stripe, re-verify the session_id server-side before unlocking gameplay.
+async function handleReturnFromPayment(){
+  const params = new URLSearchParams(location.search);
+  const isPaidReturn = params.get('paid') === 'true';
+  const sessionId = params.get('session_id');
+  if(isPaidReturn) history.replaceState({}, '', location.pathname);
+  if(!isPaidReturn || !sessionId) return;
+  try {
+    const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/verify-pong-payment?session_id=${encodeURIComponent(sessionId)}`);
+    const data = await r.json();
+    if(data.paid) startSeries();
+  } catch(_){}
+}
 
 function nextTierName(){
   // Every cycle's slot 1 is already pinned Easy by buildCycleOrder().
@@ -210,8 +298,7 @@ const TIER_LABELS = ['EASY','EASY+','MEDIUM','MEDIUM+','HARD','HARD+','SUPER HAR
 const TIER_COLORS = ['#4CFF6C','#4CFF6C','#FFD700','#FFD700','#FF8C00','#FF4444','#FF4444'];
 function tierNameToIdx(n){ return n==='EASY'?0:n==='MEDIUM'?2:n==='HARD'?4:6; }
 
-let matchNumber = 0;  // display counter
-
+let matchNumber = 0; // display counter
 
 // ── GAME STATE ────────────────────────────────────────────────────────────────
 const BALL_SPEED = () => Math.min(W,H) * 0.022;
@@ -219,45 +306,47 @@ const BALL_SPEED = () => Math.min(W,H) * 0.022;
 // full over SERVE_RAMP_FRAMES, so players can react instead of losing instant points.
 const SERVE_START_MULT = 0.35;   // starts at 35% speed
 const SERVE_RAMP_FRAMES = 75;    // ~1.25s at 60fps to reach full speed
-const SPEED_MAX  = () => Math.min(W,H) * 0.040;
+const SPEED_MAX = () => Math.min(W,H) * 0.040;
 
 let mode = '1p', gameRunning = false, ballDelay = 0;
 let currentTier = 0;
 let aiReactionDelay = 0, aiTargetCache = null;
-let aiCommittedErr = 0;      // error sampled ONCE per ball approach (stops per-frame jitter)
-let aiLastBallDir = 0;       // detects a new approach (ball direction flip)
-let aiIdlePhase = 0;         // drives continuous anticipatory drift (never parked)
-let serveRamp = 0; // counts down while ball is accelerating from serve
+let aiCommittedErr = 0;   // error sampled ONCE per ball approach (stops per-frame jitter)
+let aiLastBallDir = 0;    // detects a new approach (ball direction flip)
+let aiIdlePhase = 0;      // drives continuous anticipatory drift (never parked)
+let serveRamp = 0;        // counts down while ball is accelerating from serve
 let ballLastHitter = null; // null until a paddle actually hits the ball (serve immunity)
-const POWERUP_BLACKOUT_MS = 5000;  // no power-ups for 5s after each serve
-let serveTime = 0;                 // timestamp of the current serve
+const POWERUP_BLACKOUT_MS = 5000; // no power-ups for 5s after each serve
+let serveTime = 0; // timestamp of the current serve
+
 let state = { keys: {} }, touchState = {};
 
-// ── POWER-UPS ─────────────────────────────────────────────────────────────────
+// ── POWER-UPS ──────────────────────────────────────────────────────────────────
 const POWERUP_TYPES = {
-  ice:    { emoji:'❄️',  color:'#00cfff', duration:2500 },
-  fire:   { emoji:'🔥',  color:'#ff6600', duration:3000 },
-  shrink: { emoji:'🔒',  color:'#cc44ff', duration:4000 },
+  ice:    { emoji:'❄️', color:'#00cfff', duration:2500 },
+  fire:   { emoji:'🔥', color:'#ff6600', duration:3000 },
+  shrink: { emoji:'🔒', color:'#cc44ff', duration:4000 },
 };
 const POWERUP_KEYS = Object.keys(POWERUP_TYPES);
 let powerup = null, activeEffects = {}, bannerTimer = null;
 
-// ── OBSTACLES ─────────────────────────────────────────────────────────────────
+// ── OBSTACLES ──────────────────────────────────────────────────────────────────
 let obstacles = [], obstacleTimer = 0;
 const OBSTACLE_INTERVAL = 480;
 
-// ── RESIZE ────────────────────────────────────────────────────────────────────
+// ── RESIZE ───────────────────────────────────────────────────────────────────
 function resize() {
   W = Math.min(window.innerWidth, 420);
   H = Math.min(window.innerHeight - 80, 660); // leave room for HUD + phase bar
-  canvas.width = W; canvas.height = H;
-  PADDLE_LONG  = Math.round(W * 0.28);
+  canvas.width = W;
+  canvas.height = H;
+  PADDLE_LONG = Math.round(W * 0.28);
   PADDLE_SHORT = Math.round(H * 0.018);
   BALL_R = Math.round(Math.min(W,H) * 0.018);
   if (gameRunning) initPositions();
 }
 
-// ── HUD ───────────────────────────────────────────────────────────────────────
+// ── HUD ────────────────────────────────────────────────────────────────────────
 function updateHUD() {
   const tier = currentTier;
   const color = TIER_COLORS[tier];
@@ -289,30 +378,39 @@ function initState() {
     p2: { x:0, y:0, score:0, name:'CPU' },
     keys: {}
   };
-  touchState = {}; activeEffects = {}; powerup = null;
-  obstacles = []; obstacleTimer = 0; ballDelay = 0;
-  aiReactionDelay = 0; aiTargetCache = null;
+  touchState = {};
+  activeEffects = {};
+  powerup = null;
+  obstacles = [];
+  obstacleTimer = 0;
+  ballDelay = 0;
+  aiReactionDelay = 0;
+  aiTargetCache = null;
   initPositions();
   updateHUD();
 }
 
-// ── COUNTDOWN THEN START ──────────────────────────────────────────────────────
-function advanceTier(){
-  currentTierName = nextTierName();
+// ── COUNTDOWN THEN START ─────────────────────────────────────────────────────
+async function advanceTier(){
+  currentTierName = await getServerTierName();
   currentTier = tierNameToIdx(currentTierName);
   matchNumber++;
 }
-function startMatchWithCountdown() {
-  advanceTier();
+
+async function startMatchWithCountdown() {
+  await advanceTier();
   initState();
   let count = 3;
-  cdMsg.textContent = count; cdMsg.style.opacity = '1';
+  cdMsg.textContent = count;
+  cdMsg.style.opacity = '1';
   ballDelay = 999; // hold ball until countdown done
   gameRunning = true;
+
   const t = setInterval(() => {
     count--;
-    if (count > 0) { cdMsg.textContent = count; }
-    else {
+    if (count > 0) {
+      cdMsg.textContent = count;
+    } else {
       clearInterval(t);
       cdMsg.style.opacity = '0';
       ballDelay = 0;
@@ -330,23 +428,26 @@ function startMatchWithCountdown() {
 
 // ── BALL RESET ────────────────────────────────────────────────────────────────
 function resetBall(towardsP1) {
-  state.ball.x = W/2; state.ball.y = H/2;
-  state.ball.vx = 0; state.ball.vy = 0;
+  state.ball.x = W/2;
+  state.ball.y = H/2;
+  state.ball.vx = 0;
+  state.ball.vy = 0;
   ballLastHitter = null; // serve immunity: no powerups until a paddle hits it
   serveTime = Date.now();
-  powerup = null;        // clear any power-up on screen at the restart
+  powerup = null; // clear any power-up on screen at the restart
   delete activeEffects.ball;
   ballDelay = 90;
   state.ball._pendingDir = towardsP1;
-  state.ball._pendingSp  = BALL_SPEED();
+  state.ball._pendingSp = BALL_SPEED();
 }
 
-// ── POWER-UPS ─────────────────────────────────────────────────────────────────
+// ── POWER-UPS ──────────────────────────────────────────────────────────────────
 function schedulePowerup() {
   if (powerup) return;
   // earliest spawn is after the blackout window, plus a random extra delay
   setTimeout(() => { if (gameRunning) spawnPowerup(); }, POWERUP_BLACKOUT_MS + 300 + Math.random()*1500);
 }
+
 function spawnPowerup() {
   // Never spawn (or even show) a power-up during the 5s blackout after a serve.
   const sinceServe = Date.now() - serveTime;
@@ -357,11 +458,14 @@ function spawnPowerup() {
   }
   const type = POWERUP_KEYS[Math.floor(Math.random()*POWERUP_KEYS.length)];
   const margin = Math.min(W,H)*0.12;
-  powerup = { type, pulse:0, life:300,
+  powerup = {
+    type, pulse:0, life:300,
     x: margin + Math.random()*(W-margin*2),
     y: H*0.28 + Math.random()*H*0.44,
-    r: Math.min(W,H)*0.042 };
+    r: Math.min(W,H)*0.042
+  };
 }
+
 function checkPowerupCollision() {
   if (!powerup) return;
   // BLACKOUT: no power-ups at all for the first 5s of every point/game.
@@ -371,40 +475,61 @@ function checkPowerupCollision() {
   // BY DESIGN: only the player can trigger power-ups (a skill mechanic they aim for).
   // CPU shots pass straight through them.
   if (ballLastHitter !== 'p1') return;
+
   const b = state.ball;
   if (Math.hypot(b.x-powerup.x, b.y-powerup.y) < BALL_R + powerup.r) {
-    const lastHitter = ballLastHitter;           // the REAL hitter, not a guess
+    const lastHitter = ballLastHitter; // the REAL hitter, not a guess
     const victim = lastHitter==='p1' ? 'p2' : 'p1';
     applyPowerup(powerup.type, lastHitter, victim);
-    powerup = null; schedulePowerup();
+    powerup = null;
+    schedulePowerup();
   }
 }
+
 function applyPowerup(type, bene, victim) {
   const def = POWERUP_TYPES[type];
   const expires = Date.now() + def.duration;
   const vName = victim==='p1' ? state.p1.name : state.p2.name;
-  if (type==='ice')    { activeEffects[victim]={type:'frozen',expires}; activeEffects.ball={type:'ice',expires}; showBanner(`${def.emoji} ${vName} FROZEN!`, def.color); }
-  else if (type==='fire')   { activeEffects.ball={type:'fire',expires}; const spd=Math.min(Math.hypot(state.ball.vx,state.ball.vy)*1.3,SPEED_MAX()*1.05); const a=Math.atan2(state.ball.vy,state.ball.vx); state.ball.vx=Math.cos(a)*spd; state.ball.vy=Math.sin(a)*spd; showBanner(`${def.emoji} FIRE BALL!`, def.color); }
-  else if (type==='shrink') { activeEffects[victim]={type:'shrink',expires}; showBanner(`${def.emoji} ${vName} SHRUNK!`, def.color); }
-  else if (type==='big')    { activeEffects.ball={type:'big',expires}; showBanner(`${def.emoji} BIG BALL!`, def.color); }
+
+  if (type==='ice') {
+    activeEffects[victim]={type:'frozen',expires};
+    activeEffects.ball={type:'ice',expires};
+    showBanner(`${def.emoji} ${vName} FROZEN!`, def.color);
+  } else if (type==='fire') {
+    activeEffects.ball={type:'fire',expires};
+    const spd=Math.min(Math.hypot(state.ball.vx,state.ball.vy)*1.3,SPEED_MAX()*1.05);
+    const a=Math.atan2(state.ball.vy,state.ball.vx);
+    state.ball.vx=Math.cos(a)*spd; state.ball.vy=Math.sin(a)*spd;
+    showBanner(`${def.emoji} FIRE BALL!`, def.color);
+  } else if (type==='shrink') {
+    activeEffects[victim]={type:'shrink',expires};
+    showBanner(`${def.emoji} ${vName} SHRUNK!`, def.color);
+  } else if (type==='big') {
+    activeEffects.ball={type:'big',expires};
+    showBanner(`${def.emoji} BIG BALL!`, def.color);
+  }
 }
+
 function showBanner(text, color) {
   banner.textContent=text; banner.style.color=color; banner.style.opacity='1';
   if (bannerTimer) clearTimeout(bannerTimer);
   bannerTimer = setTimeout(()=>{ banner.style.opacity='0'; }, 1800);
 }
+
 function tickEffects() {
   const now = Date.now();
   for (const key of Object.keys(activeEffects)) {
     if (activeEffects[key].expires < now) {
       if (key==='ball' && activeEffects[key].type==='fire') {
-        const spd=BALL_SPEED(); const a=Math.atan2(state.ball.vy,state.ball.vx);
+        const spd=BALL_SPEED();
+        const a=Math.atan2(state.ball.vy,state.ball.vx);
         state.ball.vx=Math.cos(a)*spd; state.ball.vy=Math.sin(a)*spd;
       }
       delete activeEffects[key];
     }
   }
 }
+
 function getPaddleLen(p) {
   const k = p===state.p1?'p1':'p2';
   return (activeEffects[k]&&activeEffects[k].type==='shrink') ? PADDLE_LONG*0.45 : PADDLE_LONG;
@@ -414,7 +539,7 @@ function isFrozen(p) {
   return activeEffects[k]&&activeEffects[k].type==='frozen';
 }
 
-// ── OBSTACLES ─────────────────────────────────────────────────────────────────
+// ── OBSTACLES ──────────────────────────────────────────────────────────────────
 function spawnObstacle() {
   const th=Math.round(Math.min(W,H)*0.022), len=Math.round(Math.min(W,H)*(0.15+Math.random()*0.18));
   const horiz=Math.random()<0.5;
@@ -440,49 +565,53 @@ function checkObstacleCollisions() {
   }
 }
 
-// ── PHYSICS ───────────────────────────────────────────────────────────────────
+// ── PHYSICS ──────────────────────────────────────────────────────────────────
 function clamp(p){
   const l=getPaddleLen(p);
   if(p.x<0)p.x=0; if(p.x+l>W)p.x=W-l;
 }
+
 function ballHitsPaddle(p){
   const b=state.ball, len=getPaddleLen(p);
   const bigR = BALL_R;
+
   // Direct overlap this frame
   const overlapNow = b.y+bigR>p.y && b.y-bigR<p.y+PADDLE_SHORT && b.x+bigR>p.x && b.x-bigR<p.x+len;
   if (overlapNow) return true;
+
   // SWEPT CHECK: a fast ball can jump clean over the thin paddle between frames.
   // Walk the path the ball travelled this frame and test each sub-step.
-  const speed = Math.hypot(b.vx, b.vy);
-  if (speed <= PADDLE_SHORT) return false;          // slow enough, no tunneling possible
+  const speed = Math.hypot(b.vx, b.vy) * dt; // actual distance travelled this frame
+  if (speed <= PADDLE_SHORT) return false;   // slow enough, no tunneling possible
   const steps = Math.ceil(speed / Math.max(2, PADDLE_SHORT * 0.5));
-  const px = b.x - b.vx, py = b.y - b.vy;           // previous position
+  const px = b.x - b.vx*dt, py = b.y - b.vy*dt; // previous position (dt-aware)
   for (let i = 1; i < steps; i++) {
     const t = i / steps;
     const sx = px + b.vx * t, sy = py + b.vy * t;
     if (sy+bigR>p.y && sy-bigR<p.y+PADDLE_SHORT && sx+bigR>p.x && sx-bigR<p.x+len) {
-      b.x = sx; b.y = sy;                            // snap to the contact point
+      b.x = sx; b.y = sy; // snap to the contact point
       return true;
     }
   }
   return false;
 }
+
 function deflectOffPaddle(paddle, isP1){
   const b=state.ball, smax=SPEED_MAX(), len=getPaddleLen(paddle);
   const rel=(b.x-(paddle.x+len/2))/(len/2);
   const angle=rel*(Math.PI/4);
   // Once the ball is returned, the serve ramp is over — play at normal speed.
   serveRamp = 0;
-  ballLastHitter = isP1 ? 'p1' : 'p2';  // a real paddle hit - powerups now live
+  ballLastHitter = isP1 ? 'p1' : 'p2'; // a real paddle hit - powerups now live
   const cur = Math.hypot(b.vx,b.vy);
-  const base = Math.max(cur, BALL_SPEED());   // never return slower than base speed
+  const base = Math.max(cur, BALL_SPEED()); // never return slower than base speed
   const spd=Math.min(base+0.3, smax);
   b.vx=Math.sin(angle)*spd;
   b.vy=Math.cos(angle)*spd*(isP1?-1:1);
   b.y=isP1?paddle.y-BALL_R-1:paddle.y+PADDLE_SHORT+BALL_R+1;
 }
 
-// ── AI ────────────────────────────────────────────────────────────────────────
+// ── AI ─────────────────────────────────────────────────────────────────────────
 function predictLanding(){
   let bx=state.ball.x,by=state.ball.y,vx=state.ball.vx,vy=state.ball.vy;
   for(let i=0;i<200;i++){
@@ -493,14 +622,15 @@ function predictLanding(){
   }
   return bx;
 }
+
 function moveAI() {
   if (isFrozen(state.p2)) return;
   const p = state.p2;
   const b = state.ball;
   const len = getPaddleLen(p);
   const T = curTier();
-
   const pspd = Math.min(W,H) * 0.040 * T.speed;
+
   const ballComing = b.vy < 0;
   const dirNow = ballComing ? -1 : 1;
 
@@ -521,9 +651,9 @@ function moveAI() {
     // Ball moving away: shadow the ball's x loosely and sway slightly, as a player
     // does while reading the opponent. Blend between ball-x and centre.
     const sh = (T.shadow!==undefined) ? T.shadow : 0.80;
-    const anticipate = b.x * sh + (W/2) * (1-sh);   // tier-based ball shadowing
+    const anticipate = b.x * sh + (W/2) * (1-sh); // tier-based ball shadowing
     aiIdlePhase += 0.075;
-    const sway = Math.sin(aiIdlePhase) * len * 0.85;   // pronounced continuous drift
+    const sway = Math.sin(aiIdlePhase) * len * 0.85; // pronounced continuous drift
     target = anticipate - len/2 + sway + aiCommittedErr * 0.35;
   } else {
     // Ball incoming: read it. 'lead' = how much it trusts the true landing spot.
@@ -541,16 +671,17 @@ function moveAI() {
   // Smooth, continuous movement. Ease toward target so it accelerates/decelerates
   // like a hand-controlled paddle rather than snapping.
   const diff = target - p.x;
-  const step = Math.sign(diff) * Math.min(pspd, Math.abs(diff) * 0.28 + pspd * 0.12);
+  const step = Math.sign(diff) * Math.min(pspd*dt, Math.abs(diff) * 0.28 + pspd * 0.12 * dt);
   if (Math.abs(diff) > 0.5) p.x += step;
 }
 
-
 function update(){
   if(!gameRunning || !state.p1 || !state.p2 || !state.ball) return;
-  tickEffects(); tickObstacles();
+  tickEffects();
+  tickObstacles();
+
   const b=state.ball, p1=state.p1, p2=state.p2, keys=state.keys;
-  const pspd=Math.min(W,H)*0.028;
+  const pspd=Math.min(W,H)*0.045; // keyboard speed: >= fastest CPU so PC players can reach the ball
   const bigR = BALL_R;
 
   if(ballDelay>0){
@@ -564,7 +695,7 @@ function update(){
     }
     if(!isFrozen(p1)){
       if(touchState.p1x!==undefined) p1.x=touchState.p1x-getPaddleLen(p1)/2;
-      else{if(keys['ArrowLeft'])p1.x-=pspd;if(keys['ArrowRight'])p1.x+=pspd;}
+      else{if(keys['ArrowLeft'])p1.x-=pspd*dt;if(keys['ArrowRight'])p1.x+=pspd*dt;}
     }
     clamp(p1);
     if(mode==='1p'){moveAI();clamp(p2);}
@@ -572,13 +703,15 @@ function update(){
   }
 
   // (serve stays slow until first paddle hit; deflectOffPaddle restores full speed)
+  b.x+=b.vx*dt; b.y+=b.vy*dt;
 
-  b.x+=b.vx; b.y+=b.vy;
-  checkObstacleCollisions(); checkPowerupCollision();
+  checkObstacleCollisions();
+  checkPowerupCollision();
   if(powerup){powerup.pulse++;powerup.life--;if(powerup.life<=0){powerup=null;schedulePowerup();}}
 
   if(b.x-bigR<0){b.x=bigR;b.vx=Math.abs(b.vx);}
   if(b.x+bigR>W){b.x=W-bigR;b.vx=-Math.abs(b.vx);}
+
   if(ballHitsPaddle(p1)) deflectOffPaddle(p1,true);
   if(ballHitsPaddle(p2)) deflectOffPaddle(p2,false);
 
@@ -590,6 +723,7 @@ function update(){
     else{if(keys['ArrowLeft'])p1.x-=pspd;if(keys['ArrowRight'])p1.x+=pspd;}
   }
   clamp(p1);
+
   if(mode==='2p'){
     if(!isFrozen(p2)){
       if(touchState.p2x!==undefined) p2.x=touchState.p2x-getPaddleLen(p2)/2;
@@ -599,12 +733,13 @@ function update(){
   } else {moveAI();clamp(p2);}
 }
 
-// ── MATCH LOGIC ───────────────────────────────────────────────────────────────
+// ── MATCH LOGIC ────────────────────────────────────────────────────────────────
 function checkMatchPoint(p1won){
   const p=p1won?state.p1:state.p2;
   if(p.score>=POINTS_TO_WIN){
     gameRunning=false;
     updateHUD();
+    if(p1won) creditWin(); // credit $5 payout server-side for a verified player
     setTimeout(()=>showMatchResult(p1won), 400);
   }
 }
@@ -622,9 +757,12 @@ function showMatchResult(p1won){
 
   document.getElementById('mr-score').textContent = state.p1.score+' — '+state.p2.score;
   document.getElementById('mr-match').textContent = '';
+
   document.getElementById('btn-next-match').textContent = 'Play Again ($'+ENTRY_FEE.toFixed(2)+')';
 
-  const tally=document.getElementById('mr-tally'); if(tally) tally.style.display='none';
+  const tally=document.getElementById('mr-tally');
+  if(tally) tally.style.display='none';
+
   document.getElementById('match-result').style.display='flex';
 }
 
@@ -633,7 +771,8 @@ function showSeriesResult(){ /* unused in single-match */ }
 function startSeries(){
   // START ONE PAID MATCH (payment hook: charge ENTRY_FEE in backend)
   document.getElementById('overlay').style.display='none';
-  const sr=document.getElementById('series-result'); if(sr) sr.style.display='none';
+  const sr=document.getElementById('series-result');
+  if(sr) sr.style.display='none';
   startMatchWithCountdown();
   schedulePowerup();
 }
@@ -645,14 +784,15 @@ function nextMatch(){
   schedulePowerup();
 }
 
-// ── DRAW ──────────────────────────────────────────────────────────────────────
+// ── DRAW ───────────────────────────────────────────────────────────────────────
 function draw(){
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   if(!state.p1 || !state.p2 || !state.ball) return;
 
   // Centre line
   ctx.strokeStyle='#111'; ctx.lineWidth=1; ctx.setLineDash([6,8]);
-  ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+  ctx.setLineDash([]);
 
   // Obstacles
   for(const o of obstacles){
@@ -660,7 +800,8 @@ function draw(){
     const pulse=Math.sin(Date.now()/200)*0.15+0.7;
     ctx.fillStyle=`rgba(255,80,80,${alpha*pulse})`;
     ctx.shadowColor='rgba(255,60,60,0.6)'; ctx.shadowBlur=8;
-    ctx.fillRect(o.x,o.y,o.w,o.h); ctx.shadowBlur=0;
+    ctx.fillRect(o.x,o.y,o.w,o.h);
+    ctx.shadowBlur=0;
   }
 
   // Power-up
@@ -671,9 +812,10 @@ function draw(){
     ctx.beginPath(); ctx.arc(powerup.x,powerup.y,r,0,Math.PI*2);
     ctx.fillStyle=def.color+'33'; ctx.fill();
     ctx.strokeStyle=def.color; ctx.lineWidth=2; ctx.stroke();
-    ctx.font=`${Math.round(r*1.2)}px serif`;
-    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#fff';
-    ctx.fillText(def.emoji,powerup.x,powerup.y); ctx.textBaseline='alphabetic';
+    ctx.font=`${Math.round(r*1.2)}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#fff';
+    ctx.fillText(def.emoji,powerup.x,powerup.y);
+    ctx.textBaseline='alphabetic';
   }
 
   // Ball
@@ -682,9 +824,9 @@ function draw(){
   const isFire =activeEffects.ball&&activeEffects.ball.type==='fire';
   const isIce  =activeEffects.ball&&activeEffects.ball.type==='ice';
   ctx.beginPath(); ctx.arc(b.x,b.y,bigR,0,Math.PI*2);
-  if(isFire)      {ctx.fillStyle='#ff6600';ctx.shadowColor='#ff4400';ctx.shadowBlur=14;}
-  else if(isIce)  {ctx.fillStyle='#00cfff';ctx.shadowColor='#00aaff';ctx.shadowBlur=12;}
-  else            {ctx.fillStyle='#fff';ctx.shadowBlur=0;}
+  if(isFire) {ctx.fillStyle='#ff6600';ctx.shadowColor='#ff4400';ctx.shadowBlur=14;}
+  else if(isIce) {ctx.fillStyle='#00cfff';ctx.shadowColor='#00aaff';ctx.shadowBlur=12;}
+  else {ctx.fillStyle='#fff';ctx.shadowBlur=0;}
   ctx.fill(); ctx.shadowBlur=0;
 
   // Paddles
@@ -693,7 +835,8 @@ function draw(){
     const len=getPaddleLen(p);
     ctx.shadowBlur=frozen?10:0; ctx.shadowColor=frozen?'#00cfff':'transparent';
     ctx.fillStyle=frozen?'#00cfff':'#fff';
-    ctx.fillRect(p.x,p.y,len,PADDLE_SHORT); ctx.shadowBlur=0;
+    ctx.fillRect(p.x,p.y,len,PADDLE_SHORT);
+    ctx.shadowBlur=0;
   }
   if(p1) drawPaddle(p1, isFrozen(p1));
   if(p2) drawPaddle(p2, isFrozen(p2));
@@ -722,9 +865,21 @@ function draw(){
   if(activeEffects.p2){const d=POWERUP_TYPES[activeEffects.p2.type]||{};ctx.fillText(d.emoji||'',W/2+fs*0.55,H/2-fs*0.45);}
 }
 
-function loop(){ update(); draw(); requestAnimationFrame(loop); }
+let lastFrameTime = 0;
+let dt = 1; // frame-time scale, normalized so 60fps => 1.0
 
-// ── INPUT ─────────────────────────────────────────────────────────────────────
+function loop(ts){
+  if(!lastFrameTime) lastFrameTime = ts;
+  const elapsed = ts - lastFrameTime;
+  lastFrameTime = ts;
+  // Normalize to 60fps. Clamp so a lag spike / tab-switch can't teleport the ball.
+  dt = Math.min(Math.max(elapsed / (1000/60), 0.1), 3);
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ── INPUT ──────────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e=>{
   state.keys[e.key]=true;
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
@@ -745,12 +900,14 @@ function applyTouch(e){
 }
 canvas.addEventListener('touchstart',applyTouch,{passive:false});
 canvas.addEventListener('touchmove', applyTouch,{passive:false});
-canvas.addEventListener('touchend',  e=>{e.preventDefault();applyTouch(e);},{passive:false});
+canvas.addEventListener('touchend', e=>{e.preventDefault();applyTouch(e);},{passive:false});
 
-// ── BUTTONS ───────────────────────────────────────────────────────────────────
-document.getElementById('btn-start').onclick      = startSeries;
-document.getElementById('btn-next-match').onclick  = nextMatch;
-document.getElementById('btn-quit-series').onclick = ()=>{
+// ── BUTTONS ────────────────────────────────────────────────────────────────────
+// PAYWALL: Start Match sends the player to Stripe checkout first.
+// (For free gameplay testing, swap startPaidMatch -> startSeries.)
+document.getElementById('btn-start').onclick        = startPaidMatch;
+document.getElementById('btn-next-match').onclick   = nextMatch;
+document.getElementById('btn-quit-series').onclick  = ()=>{
   document.getElementById('match-result').style.display='none';
   document.getElementById('overlay').style.display='flex';
   gameRunning=false;
@@ -765,7 +922,12 @@ document.getElementById('btn-cashout').onclick = ()=>{
 };
 
 window.addEventListener('resize', resize);
-resize(); initState(); updateHUD(); loop();
+verifySession();
+handleReturnFromPayment();
+resize();
+initState();
+updateHUD();
+loop();
 </script>
 </body>
 </html>
