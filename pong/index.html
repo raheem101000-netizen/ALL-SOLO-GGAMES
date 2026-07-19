@@ -168,8 +168,8 @@ const WIN_PAYOUT    = 5.00;     // flat payout on any win (payout hook - backend
 // 4 skill-honest tiers (configurable — retune after playtest/simulation).
 // Difficulty comes ONLY from the fixed cycle below, never from a player's win history.
 const TIERS = {
-  EASY:   { label:'EASY',       color:'#4CFF6C', reactMin:0, reactMax:0, predErr:70, speed:0.48, miss:0.26, lead:0.00, shadow:0.45 },
-  MEDIUM: { label:'MEDIUM',     color:'#FFD700', reactMin:0, reactMax:0, predErr:50, speed:0.70, miss:0.18, lead:0.15, shadow:0.60 },
+  EASY:   { label:'EASY',       color:'#4CFF6C', reactMin:0, reactMax:0, predErr:70, speed:0.731, miss:0.26, lead:0.00, shadow:0.45 },
+  MEDIUM: { label:'MEDIUM',     color:'#FFD700', reactMin:0, reactMax:0, predErr:50, speed:0.900, miss:0.18, lead:0.15, shadow:0.60 },
   HARD:   { label:'HARD',       color:'#FF8C00', reactMin:0, reactMax:0, predErr:9,  speed:1.00, miss:0.02, lead:0.85, shadow:0.80 },
   SUPER:  { label:'SUPER HARD', color:'#FF4444', reactMin:0, reactMax:0, predErr:2,  speed:1.08, miss:0.005, lead:1.00, shadow:0.85 },
 };
@@ -612,11 +612,23 @@ function moveAI() {
   const ballComing = b.vy < 0;
   const dirNow = ballComing ? -1 : 1;
 
-  // Commit ONE error per rally leg (prevents per-frame jitter)
+  // Commit ONE error per rally leg (prevents per-frame jitter).
+  // Error scales with SHOT DIFFICULTY: a straight/central/slow ball is easy and
+  // returned reliably; only steep angles + speed draw the full prediction error.
   if (dirNow !== aiLastBallDir) {
     aiLastBallDir = dirNow;
-    aiCommittedErr = (Math.random()-0.5) * 2 * T.predErr;
-    if (Math.random() < T.miss) aiCommittedErr += (Math.random()-0.5) * len * 2.2;
+    // Difficulty 0..1: how angled the ball is (horizontal vs vertical speed) + how
+    // far its landing is from centre. Straight & central => ~0 => near-zero error.
+    const spdMag = Math.hypot(b.vx, b.vy) || 1;
+    const angleFactor = Math.min(1, Math.abs(b.vx) / spdMag / 0.6);   // 0 straight, 1 sharp
+    const landX = predictLanding();
+    const offCentre = Math.min(1, Math.abs(landX - W/2) / (W/2));     // 0 centre, 1 edge
+    const difficulty = Math.max(angleFactor, offCentre*0.8);          // 0 easy .. 1 hard
+    aiCommittedErr = (Math.random()-0.5) * 2 * T.predErr * difficulty;
+    // A real miss only happens on non-trivial shots, and its magnitude also scales.
+    if (difficulty > 0.25 && Math.random() < T.miss) {
+      aiCommittedErr += (Math.random()-0.5) * len * 2.2 * difficulty;
+    }
     aiIdlePhase = Math.random() * Math.PI * 2; // fresh idle sway each leg
   }
 
