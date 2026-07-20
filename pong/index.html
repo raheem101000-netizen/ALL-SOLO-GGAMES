@@ -168,9 +168,9 @@ const WIN_PAYOUT    = 5.00;     // flat payout on any win (payout hook - backend
 // 4 skill-honest tiers (configurable — retune after playtest/simulation).
 // Difficulty comes ONLY from the fixed cycle below, never from a player's win history.
 const TIERS = {
-  EASY:   { label:'EASY',       color:'#4CFF6C', reactMin:0, reactMax:0, predErr:70, speed:0.731, miss:0.26, lead:0.00, shadow:0.45 },
-  MEDIUM: { label:'MEDIUM',     color:'#FFD700', reactMin:0, reactMax:0, predErr:50, speed:0.900, miss:0.18, lead:0.15, shadow:0.60 },
-  HARD:   { label:'HARD',       color:'#FF8C00', reactMin:0, reactMax:0, predErr:9,  speed:1.00, miss:0.02, lead:0.85, shadow:0.80 },
+  EASY:   { label:'EASY',       color:'#4CFF6C', reactMin:0, reactMax:0, predErr:70, speed:0.562, miss:0.26, lead:0.00, shadow:0.45 },
+  MEDIUM: { label:'MEDIUM',     color:'#FFD700', reactMin:0, reactMax:0, predErr:50, speed:0.731, miss:0.18, lead:0.15, shadow:0.60 },
+  HARD:   { label:'HARD',       color:'#FF8C00', reactMin:0, reactMax:0, predErr:9,  speed:0.900, miss:0.02, lead:0.85, shadow:0.80 },
   SUPER:  { label:'SUPER HARD', color:'#FF4444', reactMin:0, reactMax:0, predErr:2,  speed:1.08, miss:0.005, lead:1.00, shadow:0.85 },
 };
 
@@ -327,9 +327,9 @@ let state = { keys: {} }, touchState = {};
 
 // ── POWER-UPS ─────────────────────────────────────────────────────────────────
 const POWERUP_TYPES = {
-  ice:    { emoji:'❄️',  color:'#00cfff', duration:2500 },
-  fire:   { emoji:'🔥',  color:'#ff6600', duration:3000 },
-  shrink: { emoji:'🔒',  color:'#cc44ff', duration:4000 },
+  ice:    { emoji:'❄️',  color:'#00cfff', duration:5000 },
+  fire:   { emoji:'🔥',  color:'#ff6600', duration:5000 },
+  shrink: { emoji:'🔒',  color:'#cc44ff', duration:5000 },
 };
 const POWERUP_KEYS = Object.keys(POWERUP_TYPES);
 let powerup = null, activeEffects = {}, bannerTimer = null;
@@ -526,9 +526,8 @@ function spawnObstacle() {
   obstacles.push({x:ox,y:oy,w:ow,h:oh,life:300});
 }
 function tickObstacles() {
-  obstacleTimer++;
-  if(obstacleTimer>=OBSTACLE_INTERVAL){obstacleTimer=0;if(obstacles.length<3)spawnObstacle();}
-  obstacles=obstacles.filter(o=>{o.life--;return o.life>0;});
+  // Obstacles removed from gameplay — never spawn.
+  obstacles = [];
 }
 function checkObstacleCollisions() {
   const b=state.ball;
@@ -631,24 +630,31 @@ function moveAI() {
     aiIdlePhase = Math.random() * Math.PI * 2; // fresh idle sway each leg
   }
 
-  // Always-anticipating target. The paddle is NEVER parked: even when the ball is
-  // moving away it keeps tracking/repositioning like a real player would.
   let target;
   const land = predictLanding();
 
   if (!ballComing) {
-    // Ball moving away: shadow the ball's x loosely and sway slightly, as a player
-    // does while reading the opponent. Blend between ball-x and centre.
-    const sh = (T.shadow!==undefined) ? T.shadow : 0.80;
-    const anticipate = b.x * sh + (W/2) * (1-sh);   // tier-based ball shadowing
-    aiIdlePhase += 0.075;
-    const sway = Math.sin(aiIdlePhase) * len * 0.85;   // pronounced continuous drift
-    target = anticipate - len/2 + sway + aiCommittedErr * 0.35;
+    // Ball on the PLAYER's side (moving away). A fair opponent CANNOT know where the
+    // player will aim, so the CPU does NOT track the ball here — it recovers toward a
+    // neutral ready position near centre and waits. This removes the "it moves to my
+    // shot before I shoot" rigged feeling. It only reads the ball once it's incoming.
+    aiIdlePhase += 0.05;
+    const sway = Math.sin(aiIdlePhase) * len * 0.5;    // gentle idle readiness motion
+    const home = W/2 - len/2;                          // centre = ready position
+    target = home + sway;
   } else {
-    // Ball incoming: read it. 'lead' = how much it trusts the true landing spot.
-    const chase = b.x;
-    const aim = chase + (land - chase) * T.lead;
-    // small continuous micro-adjust so it never looks frozen while waiting
+    // Ball incoming: read it. 'lead' = ceiling on how much it trusts the true landing.
+    // KEY: confidence grows as the ball gets CLOSER — far away the CPU only knows the
+    // rough direction; it homes in on the exact spot as the ball nears. This stops the
+    // "CPU teleports to the perfect spot the instant I hit it" (looks rigged) feeling.
+    const travel = (state.p1.y - b.y);                 // vertical distance still to cover
+    const totalTravel = (state.p1.y - state.p2.y) || 1;
+    const proximity = 1 - Math.max(0, Math.min(1, travel / totalTravel)); // 0 far .. 1 near
+    // ramp confidence: needs to be fairly close before full prediction kicks in
+    const confidence = Math.pow(proximity, 1.6);
+    const effLead = T.lead * confidence;               // effective trust this frame
+    const chase = b.x;                                 // where the ball is right now
+    const aim = chase + (land - chase) * effLead;      // blend current pos -> true landing
     aiIdlePhase += 0.09;
     const settle = Math.sin(aiIdlePhase) * len * 0.22;
     target = aim - len/2 + aiCommittedErr + settle;
