@@ -258,8 +258,7 @@ async function creditWin(){
 // Sends browser to Stripe Checkout for the $2.99 entry. Game resumes only on verified return.
 async function startPaidMatch(){
   try {
-    const body = {};
-    if(sessionPlayer) body.player_id = sessionPlayer.playerId;
+    const body = { player_id: sessionPlayer.playerId, token: sessionPlayer.token };
     const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/create-pong-checkout`, {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
     });
@@ -884,10 +883,17 @@ canvas.addEventListener('touchend',  e=>{e.preventDefault();applyTouch(e);},{pas
 
 // ── BUTTONS ───────────────────────────────────────────────────────────────────
 // PAYWALL: Start Match. If the player has already paid (returned from Stripe),
-// consume that credit and start. Otherwise send them to Stripe checkout.
-document.getElementById('btn-start').onclick = () => {
-  if(paymentConfirmed){ paymentConfirmed = false; startSeries(); }
-  else { startPaidMatch(); }
+// consume that credit and start. Otherwise require a logged-in session before
+// sending them to Stripe checkout — guests get redirected to log in instead.
+document.getElementById('btn-start').onclick = async () => {
+  if(paymentConfirmed){ paymentConfirmed = false; startSeries(); return; }
+  if(sessionReady) await sessionReady; // await in-flight verification instead of racing it
+  if(!sessionPlayer){
+    alert('Please log in to play.');
+    window.location.href = 'https://tenten.run/login';
+    return;
+  }
+  startPaidMatch();
 };
 document.getElementById('btn-next-match').onclick  = nextMatch;
 document.getElementById('btn-quit-series').onclick = ()=>{
