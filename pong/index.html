@@ -91,7 +91,6 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
   <div id="game-shell">
     <!-- HUD -->
     <div id="player-bar">GUEST</div>
-    <div id="test-diff" style="position:absolute;top:44px;left:50%;transform:translateX(-50%);z-index:8;font-family:monospace;font-size:13px;font-weight:700;letter-spacing:2px;padding:3px 12px;border-radius:4px;background:rgba(0,0,0,0.6);">TEST</div>
     <div id="hud">
       <div id="hud-mid">
         <div id="hud-wins"><span style="color:#4CFF6C">YOU 0</span> <span style="color:rgba(255,255,255,0.4)">—</span> <span style="color:#FF4444">0 CPU</span></div>
@@ -153,7 +152,6 @@ const WIN_PAYOUT    = 5.00;     // flat payout on any win (payout hook - backend
 
 // 4 skill-honest tiers (configurable — retune after playtest/simulation).
 // Difficulty comes ONLY from the fixed cycle below, never from a player's win history.
-// Hard tier now plays at Super Hard level (1C tuning).
 const TIERS = {
   EASY:   { label:'EASY',       color:'#4CFF6C', reactMin:0, reactMax:0, predErr:70, speed:0.562, miss:0.26, lead:0.00, shadow:0.45 },
   MEDIUM: { label:'MEDIUM',     color:'#FFD700', reactMin:0, reactMax:0, predErr:50, speed:0.900, miss:0.18, lead:0.15, shadow:0.60 },
@@ -165,8 +163,8 @@ const TIERS = {
 const CYCLE_COMPOSITION = ['EASY','EASY','MEDIUM','MEDIUM','MEDIUM','HARD','HARD','HARD','HARD','SUPER']; // spec: 2E/3M/4H/1S (~40.5% win rate)
 function buildCycleOrder(){
   // 1C composition: 2 Easy, 2 Medium, 6 Super Hard. Game 1 always Easy.
-  // The remaining 9 slots (1 Easy, 1 Medium, 6 Super) are shuffled.
-  const rest = ['EASY','MEDIUM','SUPER','SUPER','SUPER','SUPER','SUPER','SUPER'];
+  // The remaining 9 slots (1 Easy, 2 Medium, 6 Super) are shuffled.
+  const rest = ['EASY','MEDIUM','MEDIUM','SUPER','SUPER','SUPER','SUPER','SUPER','SUPER'];
   for(let i=rest.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [rest[i],rest[j]]=[rest[j],rest[i]]; }
   return ['EASY', ...rest]; // Game 1 locked Easy, then shuffled remainder
 }
@@ -222,7 +220,6 @@ function showLoginRequired(){
 // Server-assigned tier (per-player cycle persistence). Guests are blocked entirely.
 async function getServerTierName(){
   if(sessionReady) await sessionReady;
-  if(sessionPlayer && sessionPlayer.playerId==='TEST') return nextTierName();
   if(!sessionPlayer){ showLoginRequired(); throw new Error('not logged in'); }
   try {
     const url = `${MEDIASKILLS_ORIGIN}/api/pong-game?action=match-config&player_id=${encodeURIComponent(sessionPlayer.playerId)}&token=${encodeURIComponent(sessionPlayer.token)}&game=pong`;
@@ -387,8 +384,6 @@ async function advanceTier(){
   currentTierName = await getServerTierName();
   currentTier = tierNameToIdx(currentTierName);
   matchNumber++;
-  const td = document.getElementById('test-diff');
-  if(td){ const T = TIERS[currentTierName]; td.textContent = '▶ ' + T.label; td.style.color = T.color; }
 }
 
 async function startMatchWithCountdown() {
@@ -751,9 +746,10 @@ function startSeries(){
 }
 
 function nextMatch(){
+  // PLAY AGAIN = one more PAID match. Must go through Stripe checkout again —
+  // never start a new match for free.
   document.getElementById('match-result').style.display='none';
-  startMatchWithCountdown();
-  schedulePowerup();
+  startPaidMatch();
 }
 
 // ── DRAW ──────────────────────────────────────────────────────────────────────
@@ -862,7 +858,12 @@ canvas.addEventListener('touchend',  e=>{e.preventDefault();applyTouch(e);},{pas
 // ── BUTTONS ───────────────────────────────────────────────────────────────────
 // PAYWALL: Start Match. If the player has already paid (returned from Stripe),
 // consume that credit and start. Otherwise send them to Stripe checkout.
-document.getElementById('btn-start').onclick = startSeries;
+document.getElementById('btn-start').onclick = () => {
+  // No verified session = cannot play. Send them to MediaSkills to log in.
+  if(!sessionPlayer){ showLoginRequired(); return; }
+  if(paymentConfirmed){ paymentConfirmed = false; startSeries(); }
+  else { startPaidMatch(); }
+};
 document.getElementById('btn-next-match').onclick  = nextMatch;
 document.getElementById('btn-quit-series').onclick = ()=>{
   gameRunning=false;
@@ -879,7 +880,11 @@ document.getElementById('btn-cashout').onclick = ()=>{
 
 window.addEventListener('resize', resize);
 
-sessionPlayer = { playerId:'TEST', token:'TEST', displayName:'TEST PLAYER', lastMatchNumber:null };
+verifySession().then(() => {
+  if(!sessionPlayer) showLoginRequired();  // block guests immediately on load
+});
+handleReturnFromPayment();
+
 resize(); initState(); updateHUD(); loop();
 </script>
 </body>
