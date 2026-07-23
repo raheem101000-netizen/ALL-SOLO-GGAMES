@@ -91,6 +91,7 @@ canvas { display: block; width: 100%; border-radius: 0 0 8px 8px; background: #0
   <div id="game-shell">
     <!-- HUD -->
     <div id="player-bar">GUEST</div>
+    <div id="test-diff" style="position:absolute;top:44px;left:50%;transform:translateX(-50%);z-index:8;font-family:monospace;font-size:13px;font-weight:700;letter-spacing:2px;padding:3px 12px;border-radius:4px;background:rgba(0,0,0,0.6);">TEST</div>
     <div id="hud">
       <div id="hud-mid">
         <div id="hud-wins"><span style="color:#4CFF6C">YOU 0</span> <span style="color:rgba(255,255,255,0.4)">—</span> <span style="color:#FF4444">0 CPU</span></div>
@@ -152,31 +153,22 @@ const WIN_PAYOUT    = 5.00;     // flat payout on any win (payout hook - backend
 
 // 4 skill-honest tiers (configurable — retune after playtest/simulation).
 // Difficulty comes ONLY from the fixed cycle below, never from a player's win history.
+// Hard tier now plays at Super Hard level (1C tuning).
 const TIERS = {
   EASY:   { label:'EASY',       color:'#4CFF6C', reactMin:0, reactMax:0, predErr:70, speed:0.562, miss:0.26, lead:0.00, shadow:0.45 },
   MEDIUM: { label:'MEDIUM',     color:'#FFD700', reactMin:0, reactMax:0, predErr:50, speed:0.900, miss:0.18, lead:0.15, shadow:0.60 },
-  HARD:   { label:'HARD',       color:'#FF8C00', reactMin:0, reactMax:0, predErr:9,  speed:0.900, miss:0.02, lead:0.85, shadow:0.80 },
+  HARD:   { label:'HARD',       color:'#FF8C00', reactMin:0, reactMax:0, predErr:2,  speed:1.08, miss:0.005, lead:1.00, shadow:0.85 },
   SUPER:  { label:'SUPER HARD', color:'#FF4444', reactMin:0, reactMax:0, predErr:2,  speed:1.08, miss:0.005, lead:1.00, shadow:0.85 },
 };
 
 // Fixed 12-match cycle: 2 Easy, 3 Medium, 4 Hard, 3 Super Hard (~33% avg win rate).
 const CYCLE_COMPOSITION = ['EASY','EASY','MEDIUM','MEDIUM','MEDIUM','HARD','HARD','HARD','HARD','SUPER']; // spec: 2E/3M/4H/1S (~40.5% win rate)
 function buildCycleOrder(){
-  // SPEC sequencing: 2 Easy, 3 Medium, 4 Hard, 1 Super Hard.
-  // Rules: Game 1 always Easy; liability(Easy/Medium) and safe(Hard/Super) ALTERNATE;
-  // Super is a single isolated game; which liability slot is Easy vs Medium and where
-  // Super lands among safe slots is randomized per cycle.
-  const liability = ['MEDIUM','MEDIUM','MEDIUM','EASY']; // 4 (one Easy reserved for slot 1)
-  const safe = ['HARD','HARD','HARD','HARD','SUPER'];    // 5
-  for(let i=liability.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [liability[i],liability[j]]=[liability[j],liability[i]]; }
-  for(let i=safe.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [safe[i],safe[j]]=[safe[j],safe[i]]; }
-  const seq = ['EASY']; // Game 1 locked Easy
-  let li=0, si=0;
-  for(let pos=2; pos<=10; pos++){
-    if(pos%2===0){ seq.push(safe[si++]); }   // even slots = safe
-    else { seq.push(liability[li++]); }        // odd slots = liability
-  }
-  return seq;
+  // 1C composition: 2 Easy, 2 Medium, 6 Super Hard. Game 1 always Easy.
+  // The remaining 9 slots (1 Easy, 1 Medium, 6 Super) are shuffled.
+  const rest = ['EASY','MEDIUM','SUPER','SUPER','SUPER','SUPER','SUPER','SUPER'];
+  for(let i=rest.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [rest[i],rest[j]]=[rest[j],rest[i]]; }
+  return ['EASY', ...rest]; // Game 1 locked Easy, then shuffled remainder
 }
 let cycleOrder = buildCycleOrder();
 let cyclePos = 0;
@@ -298,12 +290,14 @@ function nextTierName(){
   if(cyclePos >= cycleOrder.length){ cycleOrder = buildCycleOrder(); cyclePos = 0; }
   return cycleOrder[cyclePos++];
 }
+
 function curTier(){ return TIERS[currentTierName]; }
 
 // Legacy display compatibility
 const TIER_LABELS = ['EASY','EASY+','MEDIUM','MEDIUM+','HARD','HARD+','SUPER HARD'];
 const TIER_COLORS = ['#4CFF6C','#4CFF6C','#FFD700','#FFD700','#FF8C00','#FF4444','#FF4444'];
 function tierNameToIdx(n){ return n==='EASY'?0:n==='MEDIUM'?2:n==='HARD'?4:6; }
+
 let matchNumber = 0;  // display counter
 
 // ── GAME STATE ────────────────────────────────────────────────────────────────
@@ -393,6 +387,8 @@ async function advanceTier(){
   currentTierName = await getServerTierName();
   currentTier = tierNameToIdx(currentTierName);
   matchNumber++;
+  const td = document.getElementById('test-diff');
+  if(td){ const T = TIERS[currentTierName]; td.textContent = '▶ ' + T.label; td.style.color = T.color; }
 }
 
 async function startMatchWithCountdown() {
@@ -445,6 +441,7 @@ function schedulePowerup() {
     if (gameRunning) spawnPowerup();
   }, 3000 + Math.random()*1500);   // 3-4.5s gap
 }
+
 function spawnPowerup() {
   if (powerup) return;   // never create a second one on top of an existing one
   // Never spawn during the 5s blackout after a serve.
@@ -461,6 +458,7 @@ function spawnPowerup() {
     y: H*0.28 + Math.random()*H*0.44,
     r: Math.min(W,H)*0.042 };
 }
+
 function checkPowerupCollision() {
   if (!powerup) return;
   // BLACKOUT: no power-ups at all for the first 5s of every point/game.
@@ -478,6 +476,7 @@ function checkPowerupCollision() {
     powerup = null; schedulePowerup();
   }
 }
+
 function applyPowerup(type, bene, victim) {
   const def = POWERUP_TYPES[type];
   const expires = Date.now() + def.duration;
@@ -487,11 +486,13 @@ function applyPowerup(type, bene, victim) {
   else if (type==='shrink') { activeEffects[victim]={type:'shrink',expires}; showBanner(`${def.emoji} ${vName} SHRUNK!`, def.color); }
   else if (type==='big')    { activeEffects.ball={type:'big',expires}; showBanner(`${def.emoji} BIG BALL!`, def.color); }
 }
+
 function showBanner(text, color) {
   banner.textContent=text; banner.style.color=color; banner.style.opacity='1';
   if (bannerTimer) clearTimeout(bannerTimer);
   bannerTimer = setTimeout(()=>{ banner.style.opacity='0'; }, 1800);
 }
+
 function tickEffects() {
   const now = Date.now();
   for (const key of Object.keys(activeEffects)) {
@@ -504,10 +505,12 @@ function tickEffects() {
     }
   }
 }
+
 function getPaddleLen(p) {
   const k = p===state.p1?'p1':'p2';
   return (activeEffects[k]&&activeEffects[k].type==='shrink') ? PADDLE_LONG*0.45 : PADDLE_LONG;
 }
+
 function isFrozen(p) {
   const k = p===state.p1?'p1':'p2';
   return activeEffects[k]&&activeEffects[k].type==='frozen';
@@ -522,10 +525,12 @@ function spawnObstacle() {
   else{ow=th;oh=len;ox=Math.random()*(W-ow);oy=H*0.28+Math.random()*(H*0.44-oh);}
   obstacles.push({x:ox,y:oy,w:ow,h:oh,life:300});
 }
+
 function tickObstacles() {
   // Obstacles removed from gameplay — never spawn.
   obstacles = [];
 }
+
 function checkObstacleCollisions() {
   const b=state.ball;
   for(const o of obstacles){
@@ -543,6 +548,7 @@ function clamp(p){
   const l=getPaddleLen(p);
   if(p.x<0)p.x=0; if(p.x+l>W)p.x=W-l;
 }
+
 function ballHitsPaddle(p){
   const b=state.ball, len=getPaddleLen(p);
   const bigR = BALL_R;
@@ -565,6 +571,7 @@ function ballHitsPaddle(p){
   }
   return false;
 }
+
 function deflectOffPaddle(paddle, isP1){
   const b=state.ball, smax=SPEED_MAX(), len=getPaddleLen(paddle);
   const rel=(b.x-(paddle.x+len/2))/(len/2);
@@ -591,6 +598,7 @@ function predictLanding(){
   }
   return bx;
 }
+
 function moveAI() {
   if (isFrozen(state.p2)) return;
   const p = state.p2;
@@ -715,7 +723,9 @@ function checkMatchPoint(p1won){
     setTimeout(()=>showMatchResult(p1won), 400);
   }
 }
+
 function buildTally(elId){ /* unused in single-match */ }
+
 function showMatchResult(p1won){
   const chEl=document.getElementById('mr-change');
   chEl.textContent = p1won ? 'YOU WIN' : 'YOU LOSE';
@@ -729,7 +739,9 @@ function showMatchResult(p1won){
   const tally=document.getElementById('mr-tally'); if(tally) tally.style.display='none';
   document.getElementById('match-result').style.display='flex';
 }
+
 function showSeriesResult(){ /* unused in single-match */ }
+
 function startSeries(){
   // START ONE PAID MATCH (payment hook: charge ENTRY_FEE in backend)
   document.getElementById('overlay').style.display='none';
@@ -737,6 +749,7 @@ function startSeries(){
   startMatchWithCountdown();
   schedulePowerup();
 }
+
 function nextMatch(){
   document.getElementById('match-result').style.display='none';
   startMatchWithCountdown();
