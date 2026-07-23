@@ -250,7 +250,7 @@ async function startPaidMatch(){
     return;
   }
   try {
-    const body = { player_id: sessionPlayer.playerId };
+    const body = { player_id: sessionPlayer.playerId, token: sessionPlayer.token };
     const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/create-pong-checkout`, {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
     });
