@@ -162,11 +162,9 @@ const TIERS = {
 // Fixed 12-match cycle: 2 Easy, 3 Medium, 4 Hard, 3 Super Hard (~33% avg win rate).
 const CYCLE_COMPOSITION = ['EASY','EASY','MEDIUM','MEDIUM','MEDIUM','HARD','HARD','HARD','HARD','SUPER']; // spec: 2E/3M/4H/1S (~40.5% win rate)
 function buildCycleOrder(){
-  // 1C composition: 2 Easy, 2 Medium, 6 Super Hard. Game 1 always Easy.
-  // The remaining 9 slots (1 Easy, 2 Medium, 6 Super) are shuffled.
-  const rest = ['EASY','MEDIUM','MEDIUM','SUPER','SUPER','SUPER','SUPER','SUPER','SUPER'];
-  for(let i=rest.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [rest[i],rest[j]]=[rest[j],rest[i]]; }
-  return ['EASY', ...rest]; // Game 1 locked Easy, then shuffled remainder
+  // 1C FIXED order (never shuffled) — same tier per match position for every player.
+  // Match: 1 EASY, 2 SUPER, 3 MEDIUM, 4 SUPER, 5 SUPER, 6 EASY, 7 SUPER, 8 MEDIUM, 9 SUPER, 10 SUPER
+  return ['EASY','SUPER','MEDIUM','SUPER','SUPER','EASY','SUPER','MEDIUM','SUPER','SUPER'];
 }
 let cycleOrder = buildCycleOrder();
 let cyclePos = 0;
@@ -250,7 +248,7 @@ async function startPaidMatch(){
     return;
   }
   try {
-    const body = { player_id: sessionPlayer.playerId, token: sessionPlayer.token };
+    const body = { player_id: sessionPlayer.playerId };
     const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/create-pong-checkout`, {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
     });
