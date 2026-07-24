@@ -194,7 +194,7 @@ function verifySession(){
       const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/token?action=verify&token=${encodeURIComponent(token)}`);
       if(!r.ok) return;
       const data = await r.json();
-      sessionPlayer = { playerId: data.player_id, token, displayName: data.display_name, lastMatchNumber: null };
+      sessionPlayer = { playerId: data.player_id, token, displayName: data.display_name, lastMatchNumber: null, currentPaymentIntent: null };
       sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionPlayer));
       showPlayerBar(data.display_name);
     } catch(_){}
@@ -231,13 +231,27 @@ async function getServerTierName(){
 }
 
 async function creditWin(){
-  if(!sessionPlayer || sessionPlayer.lastMatchNumber == null) return;
+  if(!sessionPlayer) return;
+  // Consume immediately (one-shot), same pattern as paymentConfirmed, so a stray
+  // second call can't resend the same payment_intent for a different match.
+  const paymentIntent = sessionPlayer.currentPaymentIntent;
+  sessionPlayer.currentPaymentIntent = null;
+  if(!paymentIntent){
+    console.error('[pong] win not credited: no payment_intent recorded for this match', { match_number: sessionPlayer.lastMatchNumber });
+    return;
+  }
   try {
-    await fetch(`${MEDIASKILLS_ORIGIN}/api/pong-game?action=record-win`, {
+    const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/pong-game?action=record-win`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ player_id: sessionPlayer.playerId, token: sessionPlayer.token, game:'pong', match_number: sessionPlayer.lastMatchNumber })
+      body: JSON.stringify({ player_id: sessionPlayer.playerId, token: sessionPlayer.token, game:'pong', match_number: sessionPlayer.lastMatchNumber, payment_intent: paymentIntent })
     });
-  } catch(_){}
+    const data = await r.json().catch(()=>null);
+    if(!r.ok || !data || data.credited === 0){
+      console.error('[pong] win credit failed or was not applied', { status: r.status, response: data, payment_intent: paymentIntent });
+    }
+  } catch(e){
+    console.error('[pong] win credit request threw', e, { payment_intent: paymentIntent });
+  }
 }
 
 // Sends browser to Stripe Checkout for the $2.99 entry. Game resumes only on verified return.
@@ -260,6 +274,7 @@ async function startPaidMatch(){
 
 // On return from Stripe, re-verify the session_id server-side before unlocking gameplay.
 let paymentConfirmed = false;  // true after a verified payment; consumed by one match start
+let pendingPaymentIntent = null;  // payment_intent for that verified payment; consumed alongside it
 async function handleReturnFromPayment(){
   const params = new URLSearchParams(location.search);
   const isPaidReturn = params.get('paid') === 'true';
@@ -273,6 +288,7 @@ async function handleReturnFromPayment(){
       // Payment verified — but DO NOT auto-start. Arm a paid credit and let the
       // player press Start Match when they're ready (they may still be reading rules).
       paymentConfirmed = true;
+      pendingPaymentIntent = data.payment_intent || null;
       const btn = document.getElementById('btn-start');
       if(btn) btn.textContent = 'Start Match (Paid ✓)';
       document.getElementById('overlay').style.display='flex';
@@ -859,7 +875,12 @@ canvas.addEventListener('touchend',  e=>{e.preventDefault();applyTouch(e);},{pas
 document.getElementById('btn-start').onclick = () => {
   // No verified session = cannot play. Send them to MediaSkills to log in.
   if(!sessionPlayer){ showLoginRequired(); return; }
-  if(paymentConfirmed){ paymentConfirmed = false; startSeries(); }
+  if(paymentConfirmed){
+    paymentConfirmed = false;
+    sessionPlayer.currentPaymentIntent = pendingPaymentIntent;
+    pendingPaymentIntent = null;
+    startSeries();
+  }
   else { startPaidMatch(); }
 };
 document.getElementById('btn-next-match').onclick  = nextMatch;
