@@ -132,6 +132,12 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
     return PHASES.find(p => matchNum >= p.matches[0] && matchNum <= p.matches[1]);
   }
 
+  // On EASY, hunter bots borrow MODERATE's decision-making params (D, floodCap,
+  // minSurvive, minOpen, truce, hunterWeight) so they stay active and carve up
+  // the board instead of sitting passive. Player movement and survivor bots
+  // are untouched — only hunterThink() below reads this.
+  const HUNTER_EASY_OVERRIDE = PHASES.find(p => p.name === 'MODERATE');
+
   const PLAYERS = [
     { id:'red',    color:'#FF4444', isBot:false, type:'player'   },
     { id:'yellow', color:'#FFD700', isBot:true,  type:'survivor' },
@@ -243,9 +249,9 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
 
   function getPlayer(){ return curves.find(x=>!x.player.isBot&&x.alive); }
 
-  function trucePenalty(nx,ny){
-    if(globalFrame>currentPhase.truce) return 0;
-    const w=1-(globalFrame/currentPhase.truce);
+  function trucePenalty(nx,ny,truceLimit){
+    if(globalFrame>truceLimit) return 0;
+    const w=1-(globalFrame/truceLimit);
     let pen=0;
     curves.forEach(o=>{
       if(!o.alive) return;
@@ -261,7 +267,7 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
     const cands=[a-step*5,a-step*2.5,a,a+step*2.5,a+step*5];
     let best=-Infinity,bestAngle=a,anyValid=false;
     for(const ca of cands){
-      const {survived,landX,landY}=walkForward(c.x,c.y,ca,c,22);
+      const {survived,landX,landY}=walkForward(c.x,c.y,ca,c,40);
       if(survived<currentPhase.minSurvive) continue;
       anyValid=true;
       const openCells=floodFill(landX,landY,c,currentPhase.floodCap);
@@ -269,7 +275,7 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
       const m=50;
       if(landX<zoneSize+m||landX>W-zoneSize-m||landY<zoneSize+m||landY>H-zoneSize-m) score-=900;
       score-=Math.hypot(landX-W/2,landY-H/2)*0.2;
-      score-=trucePenalty(landX,landY);
+      score-=trucePenalty(landX,landY,currentPhase.truce);
       if(score>best){best=score;bestAngle=ca;}
     }
     if(!anyValid){
@@ -281,10 +287,11 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
 
   function hunterThink(c){
     const a=c.angle;
-    const step=currentPhase.D;
-    const hw=currentPhase.hunterWeight;
+    const phase=currentPhase.name==='EASY'?HUNTER_EASY_OVERRIDE:currentPhase;
+    const step=phase.D;
+    const hw=phase.hunterWeight;
     const player=getPlayer();
-    const isImpossible=currentPhase.name==='IMPOSSIBLE';
+    const isImpossible=phase.name==='IMPOSSIBLE';
     const lookAhead=isImpossible?40:18;
     const cands=isImpossible
       ?[a-step*5,a-step*3.5,a-step*2,a-step*1,a,a+step*1,a+step*2,a+step*3.5,a+step*5]
@@ -292,15 +299,15 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
     let best=-Infinity,bestAngle=a,anyValid=false;
     for(const ca of cands){
       const {survived,landX,landY}=walkForward(c.x,c.y,ca,c,lookAhead);
-      if(survived<currentPhase.minSurvive) continue;
-      const openCells=floodFill(landX,landY,c,currentPhase.floodCap);
-      if(openCells<currentPhase.minOpen) continue;
+      if(survived<phase.minSurvive) continue;
+      const openCells=floodFill(landX,landY,c,phase.floodCap);
+      if(openCells<phase.minOpen) continue;
       anyValid=true;
       let score=openCells*0.4;
       const m=35;
       if(landX<zoneSize+m||landX>W-zoneSize-m||landY<zoneSize+m||landY>H-zoneSize-m) score-=1000;
-      score-=trucePenalty(landX,landY);
-      if(player&&globalFrame>currentPhase.truce*0.4){
+      score-=trucePenalty(landX,landY,phase.truce);
+      if(player&&globalFrame>phase.truce*0.4){
         const px=player.x,py=player.y;
         const distAfter=Math.hypot(landX-px,landY-py);
         score-=distAfter*hw;
