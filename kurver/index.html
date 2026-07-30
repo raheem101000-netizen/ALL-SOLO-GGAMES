@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Kurve BR — £5 Challenge</title>
+<title>Kurve BR — $4.99 Challenge</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: #0a0a1a; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
@@ -60,12 +60,12 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
   <div id="hud">
     <div id="hud-left">
       <div id="hud-dots"></div>
-      <div id="hud-alive">6 alive</div>
+      <div id="hud-alive">4 alive</div>
     </div>
-    <div id="balance-display" style="color:rgba(255,255,255,0.6)">£0.00</div>
+    <div id="balance-display" style="color:rgba(255,255,255,0.6)">$0.00</div>
     <div style="text-align:right">
-      <div id="match-display">Match 1 / 20</div>
-      <div id="phase-display" style="color:#4CFF6C">EASY</div>
+      <div id="match-display">ROUND 1 OF 5</div>
+      <div id="phase-display" style="color:#4CFF6C">WON 0  ·  LOST 0</div>
     </div>
   </div>
   <div id="phase-bar"></div>
@@ -74,22 +74,25 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
   <canvas id="c" width="680" height="420"></canvas>
 
   <div id="overlay">
-    <h2>Kurve BR — £5 Challenge</h2>
-    <p>20 matches. Win £5 per match. Lose £5 per match.<br>Cash out your balance at the end. Max £100.</p>
-    <div class="kh">
-      <b>← →</b> arrow keys or tap left/right to steer<br>
-      Survive longest to win the match<br>
-      <span style="color:rgba(255,255,255,0.35);font-size:11px;">Easy → Moderate → Difficult → Impossible</span>
+    <h2>KURVER</h2>
+    <p style="font-size:15px;line-height:1.5;">
+      Your line never stops moving and leaves a trail behind it.<br>
+      <b>Steer to avoid every trail and the walls.</b> Crash = you're out.<br>
+      Be the <b>last one alive</b> to win the round.
+    </p>
+    <div class="kh" style="line-height:1.7;">
+      <b>← →</b> arrow keys (or tap left / right side) to steer<br>
+      <b>Win a round:</b> outlast all the other lines<br>
+      <b>Win the match:</b> first to win <b>3 rounds</b> (best of 5)<br>
+      <span style="color:#4CFF6C;font-size:13px;">Win the match → win $10 &nbsp;·&nbsp; Entry $4.99</span>
     </div>
     <div class="legend">
       <div class="leg-item"><div class="leg-dot" style="background:#FF4444"></div>You</div>
       <div class="leg-item"><div class="leg-dot" style="background:#FFD700"></div>Survivor</div>
-      <div class="leg-item"><div class="leg-dot" style="background:#4CFF6C"></div>Survivor</div>
       <div class="leg-item"><div class="leg-dot" style="background:#4BA8FF;outline:1.5px solid rgba(255,255,255,0.5);outline-offset:1px"></div>Hunter</div>
       <div class="leg-item"><div class="leg-dot" style="background:#FF8C00;outline:1.5px solid rgba(255,255,255,0.5);outline-offset:1px"></div>Hunter</div>
-      <div class="leg-item"><div class="leg-dot" style="background:#DA70D6;outline:1.5px solid rgba(255,255,255,0.5);outline-offset:1px"></div>Hunter</div>
     </div>
-    <button id="play-btn">Start Session</button>
+    <button id="play-btn">Start Match ($4.99)</button>
   </div>
 
   <div id="match-result">
@@ -117,34 +120,45 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
 
   const STEP = 0.78;
   const LINE_W = 3;
-  const TOTAL_MATCHES = 20;
-  const MATCH_STAKE = 5;
-  const MAX_BALANCE = 100;
+  const ENTRY_FEE = 4.99;
+  const WIN_PAYOUT = 10;
+  const ROUNDS_PER_ENTRY = 5;
+  const ROUNDS_TO_WIN = 3;
+  const CYCLE_LENGTH = 10;
 
-  const PHASES = [
-    { name:'EASY',       color:'#4CFF6C', matches:[1,3],   D:0.028, floodCap:80,   hunterWeight:0.3, truce:600, minSurvive:20, minOpen:8  },
-    { name:'MODERATE',   color:'#FFD700', matches:[4,6],   D:0.035, floodCap:300,  hunterWeight:1.8, truce:350, minSurvive:14, minOpen:15 },
-    { name:'DIFFICULT',  color:'#FF8C00', matches:[7,12],  D:0.042, floodCap:700,  hunterWeight:4.0, truce:200, minSurvive:10, minOpen:22 },
-    { name:'IMPOSSIBLE', color:'#FF4444', matches:[13,20], D:0.050, floodCap:1200, hunterWeight:8.0, truce:80,  minSurvive:6,  minOpen:30 },
-  ];
+  // Tiers use the ORIGINAL game's phase values, unchanged (EASY = old EASY,
+  // SUPER = old IMPOSSIBLE's numbers). SUPER keeps internal name:'IMPOSSIBLE'
+  // (not the display label "SUPER HARD") because hunterThink() branches on
+  // phase.name==='IMPOSSIBLE' to unlock its hardest coordinated-hunter logic.
+  // Nothing in the UI renders tier.name, so this is invisible to players and
+  // just preserves the original hardest-tier hunter behavior.
+  const TIERS = {
+    EASY:  { name:'EASY',       color:'#4CFF6C', D:0.028, floodCap:80,   hunterWeight:0.3, truce:600, minSurvive:20, minOpen:8  },
+    SUPER: { name:'IMPOSSIBLE', color:'#FF4444', D:0.050, floodCap:1200, hunterWeight:8.0, truce:80,  minSurvive:6,  minOpen:30 },
+  };
 
-  function getPhase(matchNum){
-    return PHASES.find(p => matchNum >= p.matches[0] && matchNum <= p.matches[1]);
+  const ENTRY_CYCLE = ['EASY','SUPER','EASY','SUPER','SUPER','EASY','SUPER','SUPER','EASY','SUPER'];
+
+  function roundTiers(entryTier, cycleSlot){
+    // Best-of-5: return 5 round difficulties.
+    if(entryTier === 'SUPER'){
+      // Super entry: mostly hard with 2 easier breather rounds mixed in.
+      return ['SUPER','EASY','SUPER','EASY','SUPER'];
+    }
+    const firstEasySlot = ENTRY_CYCLE.indexOf('EASY');
+    if(cycleSlot === firstEasySlot){
+      return ['EASY','EASY','EASY','EASY','EASY'];   // pure easy
+    }
+    // mixed easy: one very-hard round at a random position, rest super easy
+    const hardPos = Math.floor(Math.random()*5);
+    return [0,1,2,3,4].map(i => i===hardPos ? 'SUPER' : 'EASY');
   }
-
-  // On EASY, hunter bots borrow MODERATE's decision-making params (D, floodCap,
-  // minSurvive, minOpen, truce, hunterWeight) so they stay active and carve up
-  // the board instead of sitting passive. Player movement and survivor bots
-  // are untouched — only hunterThink() below reads this.
-  const HUNTER_EASY_OVERRIDE = PHASES.find(p => p.name === 'MODERATE');
 
   const PLAYERS = [
     { id:'red',    color:'#FF4444', isBot:false, type:'player'   },
     { id:'yellow', color:'#FFD700', isBot:true,  type:'survivor' },
-    { id:'green',  color:'#4CFF6C', isBot:true,  type:'survivor' },
     { id:'blue',   color:'#4BA8FF', isBot:true,  type:'hunter'   },
     { id:'orange', color:'#FF8C00', isBot:true,  type:'hunter'   },
-    { id:'purple', color:'#DA70D6', isBot:true,  type:'hunter'   },
   ];
 
   const HOLE_INT = 90, HOLE_RND = 90, HOLE_LEN = 12, SELF_IMM = 18;
@@ -152,8 +166,17 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
   let keys={}, curves=[], pixelMap={};
   let animId=null, active=false, globalFrame=0;
   let deadCount=0, zoneSize=0, zoneTimer=30, zoneIv=null, elimTO=null;
-  let currentMatch=1, balance=0, wins=0, losses=0;
-  let currentPhase=PHASES[0];
+  let balance=0, wins=0, losses=0;
+  let currentPhase=TIERS.EASY;
+  let entrySlot=0, roundNum=0, playerRoundWins=0, cpuRoundWins=0;
+  let currentRoundTiers=['EASY','EASY','EASY','EASY','EASY'];
+
+  // On EASY, hunter bots borrow these decision-making params (D, floodCap,
+  // minSurvive, minOpen, truce, hunterWeight — the old MODERATE tier's
+  // numbers) so they stay active and carve up the board instead of sitting
+  // passive. Player movement and survivor bots are untouched — only
+  // hunterThink() below reads this.
+  const HUNTER_EASY_OVERRIDE = { name:'MODERATE', D:0.035, floodCap:300, hunterWeight:1.8, truce:350, minSurvive:14, minOpen:15 };
 
   document.addEventListener('keydown',e=>{
     keys[e.code]=true;
@@ -368,13 +391,12 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
   function buildPhaseBar(){
     const bar=document.getElementById('phase-bar');
     bar.innerHTML='';
-    for(let i=1;i<=TOTAL_MATCHES;i++){
-      const phase=getPhase(i);
+    for(let i=0;i<ROUNDS_PER_ENTRY;i++){
       const seg=document.createElement('div');
       seg.className='phase-seg';
-      seg.style.background=phase.color;
-      if(i<currentMatch) seg.classList.add('done');
-      else if(i===currentMatch) seg.classList.add('current');
+      seg.style.background = TIERS[currentRoundTiers[i]] ? TIERS[currentRoundTiers[i]].color : '#4CFF6C';
+      if(i<roundNum) seg.classList.add('done');
+      else if(i===roundNum) seg.classList.add('current');
       bar.appendChild(seg);
     }
   }
@@ -387,11 +409,11 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
       return `<div class="hdot" style="background:${c.player.color};opacity:${c.alive?1:0.15}${o}"></div>`;
     }).join('');
     const bal=document.getElementById('balance-display');
-    bal.textContent=(balance>=0?'+':'')+'£'+balance.toFixed(2);
-    bal.style.color=balance>0?'#4CFF6C':balance<0?'#FF4444':'rgba(255,255,255,0.6)';
-    document.getElementById('match-display').textContent=`Match ${currentMatch} / ${TOTAL_MATCHES}`;
-    document.getElementById('phase-display').textContent=currentPhase.name;
-    document.getElementById('phase-display').style.color=currentPhase.color;
+    bal.textContent='$'+balance.toFixed(2);
+    bal.style.color=balance>0?'#4CFF6C':'rgba(255,255,255,0.6)';
+    document.getElementById('match-display').textContent=`ROUND ${roundNum+1} OF 5`;
+    const pd=document.getElementById('phase-display');
+    if(pd){ pd.textContent=`WON ${playerRoundWins}  ·  LOST ${cpuRoundWins}`; pd.style.color='#4CFF6C'; }
   }
 
   function showElim(text,color){
@@ -401,23 +423,37 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
     elimTO=setTimeout(()=>el.style.opacity='0',1800);
   }
 
+  function endRoundOutcome(playerWon){
+    if(playerWon) playerRoundWins++; else cpuRoundWins++;
+    if(playerRoundWins>=ROUNDS_TO_WIN || cpuRoundWins>=ROUNDS_TO_WIN){
+      endMatch(playerRoundWins>=ROUNDS_TO_WIN);
+    } else { showRoundResult(playerWon); }   // roundNum stays on the round just played
+  }
+
+  function showRoundResult(playerWon){
+    const mr=document.getElementById('match-result');
+    const justPlayed = roundNum + 1;   // roundNum is 0-indexed and NOT yet incremented
+    document.getElementById('mr-result').textContent = (playerWon ? 'ROUND '+justPlayed+' WON' : 'ROUND '+justPlayed+' LOST');
+    document.getElementById('mr-result').style.color = playerWon ? '#4CFF6C' : '#FF4444';
+    const bal=document.getElementById('mr-balance');
+    bal.textContent = 'Match score — Won '+playerRoundWins+' · Lost '+cpuRoundWins;
+    bal.style.color='rgba(255,255,255,0.7)';
+    document.getElementById('mr-match').textContent = 'Round '+justPlayed+' of 5';
+    document.getElementById('next-btn').textContent = 'Next Round →';
+    mr.style.display='flex';
+  }
+
   function endMatch(playerWon){
     stopGame();
-    if(playerWon){ balance=Math.min(MAX_BALANCE,balance+MATCH_STAKE); wins++; }
-    else{ balance=balance-MATCH_STAKE; losses++; }
+    if(playerWon){ balance += WIN_PAYOUT; wins++; } else { losses++; }
     const mr=document.getElementById('match-result');
-    document.getElementById('mr-result').textContent=playerWon?'+£5':'-£5';
-    document.getElementById('mr-result').style.color=playerWon?'#4CFF6C':'#FF4444';
+    document.getElementById('mr-result').textContent = playerWon ? 'YOU WIN $'+WIN_PAYOUT : 'YOU LOSE';
+    document.getElementById('mr-result').style.color = playerWon ? '#4CFF6C' : '#FF4444';
     const bal=document.getElementById('mr-balance');
-    bal.textContent='Balance: '+(balance>=0?'+':'')+'£'+balance.toFixed(2);
-    bal.style.color=balance>0?'#4CFF6C':balance<0?'#FF4444':'rgba(255,255,255,0.6)';
-    if(currentMatch>=TOTAL_MATCHES){
-      document.getElementById('mr-match').textContent='Session complete — see your results';
-      document.getElementById('next-btn').textContent='See Results';
-    } else {
-      document.getElementById('mr-match').textContent=`Match ${currentMatch} of ${TOTAL_MATCHES} — Next: ${getPhase(currentMatch+1).name}`;
-      document.getElementById('next-btn').textContent='Next Match →';
-    }
+    bal.textContent = 'Final: Won '+playerRoundWins+' · Lost '+cpuRoundWins+' rounds';
+    bal.style.color='rgba(255,255,255,0.7)';
+    document.getElementById('mr-match').textContent = playerWon ? 'You won 3 rounds — $10!' : 'You lost the match';
+    document.getElementById('next-btn').textContent = 'Play Again ($'+ENTRY_FEE.toFixed(2)+')';
     mr.style.display='flex';
   }
 
@@ -426,10 +462,10 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
     const cashout=Math.max(0,balance);
     document.getElementById('final-title').textContent='Session Complete';
     document.getElementById('final-title').style.color=cashout>0?'#FFD700':'rgba(255,255,255,0.8)';
-    document.getElementById('final-balance').textContent='£'+cashout.toFixed(2);
+    document.getElementById('final-balance').textContent='$'+cashout.toFixed(2);
     document.getElementById('final-balance').style.color=cashout>0?'#4CFF6C':'rgba(255,255,255,0.4)';
     document.getElementById('final-sub').textContent=cashout>0?'You finished in profit — cash out your winnings':'No profit this session — better luck next time';
-    document.getElementById('final-summary').textContent=`${wins} wins / ${losses} losses across 20 matches`;
+    document.getElementById('final-summary').textContent=`${wins} wins / ${losses} losses this session`;
     document.getElementById('cashout-btn').style.display=cashout>0?'block':'none';
     document.getElementById('result-screen').style.display='flex';
   }
@@ -453,13 +489,13 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
     if(!c.player.isBot){
       showElim('Eliminated!','#FF4444');
       stopGame();
-      setTimeout(()=>endMatch(false),600);
+      setTimeout(()=>endRoundOutcome(false),600);
       return;
     }
     showElim(c.player.id+' out — '+remaining+' left',c.player.color);
     if(remaining===1){
       const last=curves.find(x=>x.alive);
-      if(last&&!last.player.isBot){ stopGame(); setTimeout(()=>endMatch(true),600); }
+      if(last&&!last.player.isBot){ stopGame(); setTimeout(()=>endRoundOutcome(true),600); }
     }
     if(remaining===0) stopGame();
   }
@@ -515,8 +551,17 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
     animId=requestAnimationFrame(loop);
   }
 
+  function startEntry(){
+    const entryTier = ENTRY_CYCLE[entrySlot % CYCLE_LENGTH];
+    currentRoundTiers = roundTiers(entryTier, entrySlot % CYCLE_LENGTH);
+    roundNum=0; playerRoundWins=0; cpuRoundWins=0;
+    startRound();
+  }
+
+  function startRound(){ startMatch(); }
+
   function startMatch(){
-    currentPhase=getPhase(currentMatch);
+    currentPhase = TIERS[currentRoundTiers[roundNum]] || TIERS.EASY;
     pixelMap={};deadCount=0;zoneSize=0;globalFrame=0;curves=[];
     PLAYERS.forEach((p,i)=>curves.push(mkCurve(p,i)));
     buildPhaseBar();updateHUD();drawField();
@@ -531,20 +576,21 @@ document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { 
   }
 
   function startSession(){
-    currentMatch=1;balance=0;wins=0;losses=0;
+    entrySlot=0; balance=0; wins=0; losses=0;
     document.getElementById('overlay').style.display='none';
     document.getElementById('result-screen').style.display='none';
-    startMatch();
+    startEntry();
   }
 
   document.getElementById('play-btn').addEventListener('click',startSession);
   document.getElementById('next-btn').addEventListener('click',()=>{
     document.getElementById('match-result').style.display='none';
-    if(currentMatch>=TOTAL_MATCHES){ showFinalResult(); }
-    else{ currentMatch++; startMatch(); }
+    const entryDecided = (playerRoundWins>=ROUNDS_TO_WIN || cpuRoundWins>=ROUNDS_TO_WIN);
+    if(entryDecided){ entrySlot++; startEntry(); }
+    else { roundNum++; startRound(); }   // advance to next round now
   });
   document.getElementById('cashout-btn').addEventListener('click',()=>{
-    alert('Cashing out £'+Math.max(0,balance).toFixed(2)+'!\n\n(Connect your payment system here)');
+    alert('Cashing out $'+Math.max(0,balance).toFixed(2)+'!\n\n(Connect your payment system here)');
   });
   document.getElementById('again-btn').addEventListener('click',()=>{
     document.getElementById('result-screen').style.display='none';
