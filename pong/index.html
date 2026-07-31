@@ -176,6 +176,11 @@ const SESSION_STORAGE_KEY = 'pong_session_player';
 let sessionPlayer = null;
 let sessionReady = null;
 
+function persistSession(){
+  if(!sessionPlayer) return;
+  try { sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionPlayer)); } catch(_){}
+}
+
 function showPlayerBar(displayName){
   const bar = document.getElementById('player-bar');
   if(!bar) return;
@@ -185,7 +190,16 @@ function showPlayerBar(displayName){
 function verifySession(){
   sessionReady = (async () => {
     const cached = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if(cached){ try { sessionPlayer = JSON.parse(cached); showPlayerBar(sessionPlayer.displayName); return; } catch(_){} }
+    if(cached){
+      try {
+        sessionPlayer = JSON.parse(cached);
+        if(sessionPlayer.paymentConfirmed === undefined) sessionPlayer.paymentConfirmed = false;
+        if(sessionPlayer.pendingPaymentIntent === undefined) sessionPlayer.pendingPaymentIntent = null;
+        if(sessionPlayer.lastVerifiedSessionId === undefined) sessionPlayer.lastVerifiedSessionId = null;
+        showPlayerBar(sessionPlayer.displayName);
+        return;
+      } catch(_){}
+    }
     const params = new URLSearchParams(location.search);
     const playerId = params.get('player_id');
     const token = params.get('token');
@@ -194,8 +208,8 @@ function verifySession(){
       const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/token?action=verify&token=${encodeURIComponent(token)}`);
       if(!r.ok) return;
       const data = await r.json();
-      sessionPlayer = { playerId: data.player_id, token, displayName: data.display_name, lastMatchNumber: null, currentPaymentIntent: null };
-      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionPlayer));
+      sessionPlayer = { playerId: data.player_id, token, displayName: data.display_name, lastMatchNumber: null, currentPaymentIntent: null, paymentConfirmed: false, pendingPaymentIntent: null, lastVerifiedSessionId: null };
+      persistSession();
       showPlayerBar(data.display_name);
     } catch(_){}
   })();
@@ -226,20 +240,67 @@ async function getServerTierName(){
     const data = await r.json();
     if(!TIERS[data.tier]) throw new Error('bad tier');
     sessionPlayer.lastMatchNumber = data.match_number;
+    persistSession();
     return data.tier;
   } catch(_){ return nextTierName(); }
+}
+
+const UNCLAIMED_WINS_KEY = 'pong_unclaimed_wins';
+function reportUnclaimedWin(reason){
+  try {
+    const list = JSON.parse(sessionStorage.getItem(UNCLAIMED_WINS_KEY) || '[]');
+    list.push({
+      player_id: sessionPlayer ? sessionPlayer.playerId : null,
+      match_number: sessionPlayer ? sessionPlayer.lastMatchNumber : null,
+      reason,
+      at: new Date().toISOString()
+    });
+    sessionStorage.setItem(UNCLAIMED_WINS_KEY, JSON.stringify(list));
+  } catch(_){}
+  showUnclaimedWinBanner();
+}
+
+function showUnclaimedWinBanner(){
+  let el = document.getElementById('unclaimed-win-banner');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'unclaimed-win-banner';
+    el.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#FF4444;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;text-align:center;max-width:90vw;box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+    document.body.appendChild(el);
+  }
+  el.textContent = "Your win couldn't be confirmed automatically — contact support, we have it logged.";
+  el.style.display = 'block';
 }
 
 async function creditWin(){
   if(!sessionPlayer) return;
   // Consume immediately (one-shot), same pattern as paymentConfirmed, so a stray
   // second call can't resend the same payment_intent for a different match.
-  const paymentIntent = sessionPlayer.currentPaymentIntent;
+  let paymentIntent = sessionPlayer.currentPaymentIntent;
   sessionPlayer.currentPaymentIntent = null;
+  persistSession();
+
   if(!paymentIntent){
-    console.error('[pong] win not credited: no payment_intent recorded for this match', { match_number: sessionPlayer.lastMatchNumber });
+    // Safety net: intent went missing (bfcache restore, dropped reload, etc).
+    // Recover from the last verified Stripe session before giving up — this only
+    // re-derives a REAL, already-verified payment_intent via the same read-only
+    // endpoint used on return; it never fabricates one. The server's payment_intent
+    // uniqueness check is still the hard gate against double-crediting.
+    console.error('[pong] currentPaymentIntent missing at credit time — attempting recovery', { match_number: sessionPlayer.lastMatchNumber, last_verified_session_id: sessionPlayer.lastVerifiedSessionId });
+    if(sessionPlayer.lastVerifiedSessionId){
+      try {
+        const rr = await fetch(`${MEDIASKILLS_ORIGIN}/api/verify-pong-payment?session_id=${encodeURIComponent(sessionPlayer.lastVerifiedSessionId)}`);
+        const rd = await rr.json().catch(()=>null);
+        if(rd && rd.paid && rd.payment_intent) paymentIntent = rd.payment_intent;
+      } catch(_){}
+    }
+  }
+
+  if(!paymentIntent){
+    reportUnclaimedWin('no payment_intent available (recovery failed)');
     return;
   }
+
   try {
     const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/pong-game?action=record-win`, {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -248,9 +309,11 @@ async function creditWin(){
     const data = await r.json().catch(()=>null);
     if(!r.ok || !data || data.credited === 0){
       console.error('[pong] win credit failed or was not applied', { status: r.status, response: data, payment_intent: paymentIntent });
+      reportUnclaimedWin('record-win rejected: ' + (r.status + (data && data.error ? ' ' + data.error : '')));
     }
   } catch(e){
     console.error('[pong] win credit request threw', e, { payment_intent: paymentIntent });
+    reportUnclaimedWin('record-win request threw: ' + (e && e.message ? e.message : String(e)));
   }
 }
 
@@ -273,22 +336,27 @@ async function startPaidMatch(){
 }
 
 // On return from Stripe, re-verify the session_id server-side before unlocking gameplay.
-let paymentConfirmed = false;  // true after a verified payment; consumed by one match start
-let pendingPaymentIntent = null;  // payment_intent for that verified payment; consumed alongside it
+// Payment handoff state (paymentConfirmed/pendingPaymentIntent/lastVerifiedSessionId) lives
+// on sessionPlayer and is persisted via persistSession(), so it survives a bfcache restore
+// or reload instead of being lost as bare in-memory variables.
 async function handleReturnFromPayment(){
+  if(sessionReady) await sessionReady;
   const params = new URLSearchParams(location.search);
   const isPaidReturn = params.get('paid') === 'true';
   const sessionId = params.get('session_id');
   if(isPaidReturn) history.replaceState({}, '', location.pathname);
   if(!isPaidReturn || !sessionId) return;
+  if(!sessionPlayer) return;
   try {
     const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/verify-pong-payment?session_id=${encodeURIComponent(sessionId)}`);
     const data = await r.json();
     if(data.paid){
       // Payment verified — but DO NOT auto-start. Arm a paid credit and let the
       // player press Start Match when they're ready (they may still be reading rules).
-      paymentConfirmed = true;
-      pendingPaymentIntent = data.payment_intent || null;
+      sessionPlayer.paymentConfirmed = true;
+      sessionPlayer.pendingPaymentIntent = data.payment_intent || null;
+      sessionPlayer.lastVerifiedSessionId = sessionId;
+      persistSession();
       const btn = document.getElementById('btn-start');
       if(btn) btn.textContent = 'Start Match (Paid ✓)';
       document.getElementById('overlay').style.display='flex';
@@ -875,10 +943,11 @@ canvas.addEventListener('touchend',  e=>{e.preventDefault();applyTouch(e);},{pas
 document.getElementById('btn-start').onclick = () => {
   // No verified session = cannot play. Send them to MediaSkills to log in.
   if(!sessionPlayer){ showLoginRequired(); return; }
-  if(paymentConfirmed){
-    paymentConfirmed = false;
-    sessionPlayer.currentPaymentIntent = pendingPaymentIntent;
-    pendingPaymentIntent = null;
+  if(sessionPlayer.paymentConfirmed){
+    sessionPlayer.paymentConfirmed = false;
+    sessionPlayer.currentPaymentIntent = sessionPlayer.pendingPaymentIntent;
+    sessionPlayer.pendingPaymentIntent = null;
+    persistSession();
     startSeries();
   }
   else { startPaidMatch(); }
@@ -902,7 +971,10 @@ window.addEventListener('resize', resize);
 verifySession().then(() => {
   if(!sessionPlayer) showLoginRequired();  // block guests immediately on load
 });
-handleReturnFromPayment();
+// pageshow covers both the normal first load AND a bfcache-restored page (e.g. the
+// browser serving this page from cache instead of re-running scripts after a Stripe
+// redirect) — handleReturnFromPayment() is idempotent so re-running it is safe.
+window.addEventListener('pageshow', () => { handleReturnFromPayment(); });
 
 resize(); initState(); updateHUD(); loop();
 </script>
