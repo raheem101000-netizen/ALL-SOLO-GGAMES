@@ -317,6 +317,36 @@ async function creditWin(){
   }
 }
 
+// Mirrors creditWin()'s payment_intent handling (consume + recover-if-missing) so a loss
+// is logged just as reliably as a win — no money moves here, but this is what lets the
+// server's match_results audit log capture every match end, not just the wins.
+async function reportLoss(){
+  if(!sessionPlayer) return;
+  let paymentIntent = sessionPlayer.currentPaymentIntent;
+  sessionPlayer.currentPaymentIntent = null;
+  persistSession();
+
+  if(!paymentIntent && sessionPlayer.lastVerifiedSessionId){
+    try {
+      const rr = await fetch(`${MEDIASKILLS_ORIGIN}/api/verify-pong-payment?session_id=${encodeURIComponent(sessionPlayer.lastVerifiedSessionId)}`);
+      const rd = await rr.json().catch(()=>null);
+      if(rd && rd.paid && rd.payment_intent) paymentIntent = rd.payment_intent;
+    } catch(_){}
+  }
+
+  try {
+    const r = await fetch(`${MEDIASKILLS_ORIGIN}/api/pong-game?action=record-loss`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ player_id: sessionPlayer.playerId, token: sessionPlayer.token, game:'pong', match_number: sessionPlayer.lastMatchNumber, payment_intent: paymentIntent })
+    });
+    if(!r.ok){
+      console.error('[pong] loss report failed', { status: r.status, match_number: sessionPlayer.lastMatchNumber, payment_intent: paymentIntent });
+    }
+  } catch(e){
+    console.error('[pong] loss report request threw', e, { match_number: sessionPlayer.lastMatchNumber });
+  }
+}
+
 // Sends browser to Stripe Checkout for the $2.99 entry. Game resumes only on verified return.
 async function startPaidMatch(){
   // HARD GATE: no verified login = no play. Never let a guest start a match.
@@ -796,7 +826,7 @@ function checkMatchPoint(p1won){
   if(p.score>=POINTS_TO_WIN){
     gameRunning=false;
     updateHUD();
-    if(p1won) creditWin();  // credit $5 payout server-side for a verified player
+    if(p1won) creditWin(); else reportLoss();  // both log server-side, win or loss
     setTimeout(()=>showMatchResult(p1won), 400);
   }
 }
