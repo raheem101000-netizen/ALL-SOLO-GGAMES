@@ -162,8 +162,8 @@ const TIERS = {
 // Fixed 12-match cycle: 2 Easy, 3 Medium, 4 Hard, 3 Super Hard (~33% avg win rate).
 const CYCLE_COMPOSITION = ['EASY','EASY','MEDIUM','MEDIUM','MEDIUM','HARD','HARD','HARD','HARD','SUPER']; // spec: 2E/3M/4H/1S (~40.5% win rate)
 function buildCycleOrder(){
-  // 1D FIXED order (never shuffled) — every match position is SUPER for every player.
-  return ['SUPER','SUPER','SUPER','SUPER','SUPER','SUPER','SUPER','SUPER','SUPER','SUPER'];
+  // TEMPORARY: forced all-EASY for testing the win→balance crediting flow. Revert after testing.
+  return ['EASY','EASY','EASY','EASY','EASY','EASY','EASY','EASY','EASY','EASY'];
 }
 let cycleOrder = buildCycleOrder();
 let cyclePos = 0;
