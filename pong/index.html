@@ -162,8 +162,9 @@ const TIERS = {
 // Fixed 12-match cycle: 2 Easy, 3 Medium, 4 Hard, 3 Super Hard (~33% avg win rate).
 const CYCLE_COMPOSITION = ['EASY','EASY','MEDIUM','MEDIUM','MEDIUM','HARD','HARD','HARD','HARD','SUPER']; // spec: 2E/3M/4H/1S (~40.5% win rate)
 function buildCycleOrder(){
-  // TEMPORARY: forced all-EASY for testing the win→balance crediting flow. Revert after testing.
-  return ['EASY','EASY','EASY','EASY','EASY','EASY','EASY','EASY','EASY','EASY'];
+  // Fixed 20-position cycle: Cycle 1 (games 1-10) = 5 Easy/5 Super; Cycle 2 (games 11-20) = 6 Easy/4 Super. Repeats every 20.
+  return ['EASY','EASY','SUPER','EASY','SUPER','SUPER','EASY','SUPER','EASY','SUPER',
+          'EASY','SUPER','EASY','EASY','SUPER','EASY','EASY','SUPER','EASY','SUPER'];
 }
 let cycleOrder = buildCycleOrder();
 let cyclePos = 0;
