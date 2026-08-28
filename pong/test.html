@@ -374,6 +374,23 @@ async function advanceTier(){
   currentTierName = await getServerTierName();
   currentTier = tierNameToIdx(currentTierName);
   matchNumber++;
+  __testUpdateBar();
+}
+function __testUpdateBar(){
+  const el = document.getElementById('tt-bar');
+  if(!el) return;
+  const now = currentTierName;
+  const c = now==='EASY' ? '#4CFF6C' : '#FF4444';
+  const label = now==='SUPER' ? 'SUPER HARD' : 'EASY';
+  if(__testForcedTier){
+    el.innerHTML = 'FORCED: <b style="color:'+c+'">'+label+'</b> — match '+__testMatchNo+', every match this tier';
+  } else {
+    const order = buildCycleOrder();
+    const posInCycle = ((__testMatchNo-1)%10)+1;
+    const cyc = Math.floor((__testMatchNo-1)/10)+1;
+    const next = order[__testMatchNo % order.length];
+    el.innerHTML = '20-ARRAY · match <b>'+__testMatchNo+'</b> (cycle '+cyc+', pos '+posInCycle+') · NOW: <b style="color:'+c+'">'+label+'</b> · next: '+(next==='SUPER'?'SUPER':'EASY');
+  }
 }
 
 async function startMatchWithCountdown() {
