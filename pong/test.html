@@ -184,11 +184,29 @@ function __testSetTier(t){
   __testForcedTier = t;
   ['CYCLE','EASY','SUPER'].forEach(n=>{ const b=document.getElementById('tt-'+n);
     if(b) b.style.outline = ((n==='CYCLE'&&t===null)||n===t)?'2px solid #fff':'none'; });
-  const el=document.getElementById('tt-bar');
-  if(el){ if(t){ const c=t==='EASY'?'#4CFF6C':'#FF4444';
-      el.innerHTML='FORCED: <b style="color:'+c+'">'+(t==='SUPER'?'SUPER HARD':'EASY')+'</b> — every match uses this tier';
-    } else el.innerHTML='Following the real 20-array sequence'; }
   if(typeof resize==='function') setTimeout(resize,0);
+  // If a match is on-screen (playing OR on a result overlay), immediately end it and
+  // start a fresh match on the newly chosen tier — so the switch takes effect NOW.
+  const resultUp = document.getElementById('match-result').style.display === 'flex';
+  const menuUp   = document.getElementById('overlay').style.display !== 'none';
+  if(gameRunning || resultUp){
+    gameRunning = false;
+    // For a forced tier, next match must BE that tier. For 20-array, restart the
+    // sequence from the top so you get a clean, predictable first tier.
+    if(t) __testMatchNo = 0;   // forced: __testTierName ignores counter anyway
+    else  __testMatchNo = 0;   // 20-array: restart sequence at match 1 (EASY)
+    document.getElementById('match-result').style.display='none';
+    document.getElementById('overlay').style.display='none';
+    const sr=document.getElementById('series-result'); if(sr) sr.style.display='none';
+    startMatchWithCountdown();  // picks the new tier via advanceTier -> getServerTierName
+    schedulePowerup();
+  } else {
+    // No match in progress (on the start menu): just update the bar text.
+    const el=document.getElementById('tt-bar');
+    if(el){ if(t){ const c=t==='EASY'?'#4CFF6C':'#FF4444';
+        el.innerHTML='FORCED: <b style="color:'+c+'">'+(t==='SUPER'?'SUPER HARD':'EASY')+'</b> — every match uses this tier';
+      } else el.innerHTML='20-ARRAY — press Play to start the sequence'; }
+  }
 }
 function __testInjectUI(){
   const shell = document.getElementById('game-shell') || document.body;
