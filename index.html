@@ -34,5 +34,38 @@ a.card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.2);
     <div class="card-desc">10-match series vs AI. Drag or use arrow keys. Power-ups, obstacles, escalating difficulty.</div>
   </a>
 </div>
+<script>
+(function(){
+  var TEST = new URLSearchParams(location.search).get('test') === 'WinterSKI2026';
+  if(!TEST) return;
+  // Banner
+  var b = document.createElement('div');
+  b.textContent = 'TEST MODE — free play + difficulty picker. Not the live paid games.';
+  b.style.cssText = 'background:#FF4444;color:#fff;font-family:monospace;font-size:12px;padding:8px 14px;text-align:center;letter-spacing:0.5px;width:100%;position:fixed;top:0;left:0;z-index:99;';
+  document.body.appendChild(b);
+  document.body.style.paddingTop = '52px';
+  // Rewrite each game card link to carry the keyword, and mark ones without a tier picker.
+  var cards = document.querySelectorAll('a.card');
+  cards.forEach(function(a){
+    var href = a.getAttribute('href') || '';
+    // add ?test=... to the game URL
+    a.setAttribute('href', href + (href.indexOf('?')>-1?'&':'?') + 'test=WinterSKI2026');
+    // Pong has a tier picker; others don't yet.
+    if(a.classList.contains('pong')){
+      var t = document.createElement('div');
+      t.textContent = '✓ difficulty picker (EASY / SUPER)';
+      t.style.cssText='margin-top:8px;font-size:11px;color:#4CFF6C;font-family:monospace;';
+      a.appendChild(t);
+    } else {
+      var t2 = document.createElement('div');
+      t2.textContent = 'free play — no difficulty tiers yet';
+      t2.style.cssText='margin-top:8px;font-size:11px;color:rgba(255,255,255,0.35);font-family:monospace;';
+      a.appendChild(t2);
+    }
+  });
+  // Subtitle tweak
+  var p = document.querySelector('p'); if(p) p.textContent = 'TEST HUB — pick a game to test difficulty';
+})();
+</script>
 </body>
 </html>

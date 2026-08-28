@@ -170,6 +170,50 @@ let cycleOrder = buildCycleOrder();
 let cyclePos = 0;
 let currentTierName = 'EASY';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TEST MODE — only active when the URL has ?test=WinterSKI2026
+// Real players (no param) are completely unaffected: paywall, login, crediting
+// all run exactly as normal. This block only unlocks free difficulty testing.
+// To fully remove test mode later, delete this block and the `if(TEST_MODE)` guards.
+// ─────────────────────────────────────────────────────────────────────────────
+const TEST_MODE = new URLSearchParams(location.search).get('test') === 'WinterSKI2026';
+let __testForcedTier = null;   // null = follow real 20-array; else 'EASY'/'SUPER'
+let __testMatchNo = 0;
+function __testTierName(){
+  if(__testForcedTier){ __testMatchNo++; return __testForcedTier; }
+  const order = buildCycleOrder();
+  const t = order[__testMatchNo % order.length];
+  __testMatchNo++;
+  return t;
+}
+function __testSetTier(t){
+  __testForcedTier = t;
+  ['CYCLE','EASY','SUPER'].forEach(n=>{ const b=document.getElementById('tt-'+n);
+    if(b) b.style.outline = ((n==='CYCLE'&&t===null)||n===t)?'2px solid #fff':'none'; });
+  const el=document.getElementById('tt-bar');
+  if(el){ if(t){ const c=t==='EASY'?'#4CFF6C':'#FF4444';
+      el.innerHTML='FORCED: <b style="color:'+c+'">'+(t==='SUPER'?'SUPER HARD':'EASY')+'</b> — every match uses this tier';
+    } else el.innerHTML='Following the real 20-array sequence'; }
+  if(typeof resize==='function') setTimeout(resize,0);
+}
+function __testInjectUI(){
+  if(!TEST_MODE) return;
+  const shell = document.getElementById('game-shell') || document.body;
+  const wrap = document.createElement('div');
+  wrap.innerHTML =
+    '<div id="tt-bar" style="padding:5px 10px;background:#111;text-align:center;font-size:11px;color:#ddd;font-family:monospace;border-bottom:1px solid #222;">TEST MODE — following the real 20-array sequence</div>'+
+    '<div style="display:flex;gap:5px;padding:5px 8px;background:#0a0a0a;justify-content:center;border-bottom:1px solid #222;">'+
+    '<button id="tt-CYCLE" style="flex:1;padding:7px 4px;background:#1a1a1a;color:#fff;border:1px solid #333;outline:2px solid #fff;border-radius:4px;font-family:monospace;font-size:11px;cursor:pointer;">20-ARRAY</button>'+
+    '<button id="tt-EASY" style="flex:1;padding:7px 4px;background:#1a1a1a;color:#4CFF6C;border:1px solid #333;border-radius:4px;font-family:monospace;font-size:11px;cursor:pointer;">EASY</button>'+
+    '<button id="tt-SUPER" style="flex:1;padding:7px 4px;background:#1a1a1a;color:#FF4444;border:1px solid #333;border-radius:4px;font-family:monospace;font-size:11px;cursor:pointer;">SUPER HARD</button>'+
+    '</div>';
+  shell.insertBefore(wrap, shell.firstChild);
+  document.getElementById('tt-CYCLE').onclick=()=>__testSetTier(null);
+  document.getElementById('tt-EASY').onclick =()=>__testSetTier('EASY');
+  document.getElementById('tt-SUPER').onclick=()=>__testSetTier('SUPER');
+}
+
+
 // ── MEDIASKILLS BACKEND INTEGRATION ──────────────────────────────────────────
 const MEDIASKILLS_ORIGIN = 'https://mediaskills.vercel.app';
 const SESSION_STORAGE_KEY = 'pong_session_player';
@@ -231,6 +275,7 @@ function showLoginRequired(){
 
 // Server-assigned tier (per-player cycle persistence). Guests are blocked entirely.
 async function getServerTierName(){
+  if(TEST_MODE){ return __testTierName(); }
   if(sessionReady) await sessionReady;
   if(!sessionPlayer){ showLoginRequired(); throw new Error('not logged in'); }
   try {
@@ -273,6 +318,7 @@ function showUnclaimedWinBanner(){
 }
 
 async function creditWin(){
+  if(TEST_MODE) return;
   if(!sessionPlayer) return;
   // Consume immediately (one-shot), same pattern as paymentConfirmed, so a stray
   // second call can't resend the same payment_intent for a different match.
@@ -321,6 +367,7 @@ async function creditWin(){
 // is logged just as reliably as a win — no money moves here, but this is what lets the
 // server's match_results audit log capture every match end, not just the wins.
 async function reportLoss(){
+  if(TEST_MODE) return;
   if(!sessionPlayer) return;
   let paymentIntent = sessionPlayer.currentPaymentIntent;
   sessionPlayer.currentPaymentIntent = null;
@@ -349,6 +396,7 @@ async function reportLoss(){
 
 // Sends browser to Stripe Checkout for the $2.99 entry. Game resumes only on verified return.
 async function startPaidMatch(){
+  if(TEST_MODE){ startSeries(); return; }  // free play, no Stripe
   // HARD GATE: no verified login = no play. Never let a guest start a match.
   if(!sessionPlayer){
     showLoginRequired();
@@ -444,7 +492,7 @@ const OBSTACLE_INTERVAL = 480;
 // ── RESIZE ────────────────────────────────────────────────────────────────────
 function resize() {
   W = Math.min(window.innerWidth, 420);
-  H = Math.min(window.innerHeight - 80, 660); // leave room for HUD + phase bar
+  H = Math.min(window.innerHeight - (typeof TEST_MODE!=='undefined' && TEST_MODE ? 150 : 80), 660); // TEST_MODE reserves room for the tier picker
   canvas.width = W; canvas.height = H;
   PADDLE_LONG  = Math.round(W * 0.28);
   PADDLE_SHORT = Math.round(H * 0.018);
@@ -998,9 +1046,14 @@ document.getElementById('btn-cashout').onclick = ()=>{
 
 window.addEventListener('resize', resize);
 
-verifySession().then(() => {
-  if(!sessionPlayer) showLoginRequired();  // block guests immediately on load
-});
+if(TEST_MODE){
+  sessionPlayer = { playerId:0, token:'test', displayName:'TEST', lastMatchNumber:null };
+  __testInjectUI();
+} else {
+  verifySession().then(() => {
+    if(!sessionPlayer) showLoginRequired();  // block guests immediately on load
+  });
+}
 // pageshow covers both the normal first load AND a bfcache-restored page (e.g. the
 // browser serving this page from cache instead of re-running scripts after a Stripe
 // redirect) — handleReturnFromPayment() is idempotent so re-running it is safe.
