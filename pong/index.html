@@ -146,7 +146,7 @@ const cdMsg   = document.getElementById('cd-msg');
 let W, H, PADDLE_LONG, PADDLE_SHORT, BALL_R;
 
 // ── SINGLE-MATCH CONFIG + DIFFICULTY CYCLE ────────────────────────────────────
-const POINTS_TO_WIN = 5;        // first to 5 wins the match
+const POINTS_TO_WIN = 3;        // first to 3 wins the match
 const ENTRY_FEE     = 2.99;     // paid per match (payment hook - backend)
 const WIN_PAYOUT    = 5.00;     // flat payout on any win (payout hook - backend)
 
@@ -169,50 +169,6 @@ function buildCycleOrder(){
 let cycleOrder = buildCycleOrder();
 let cyclePos = 0;
 let currentTierName = 'EASY';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TEST MODE — only active when the URL has ?test=WinterSKI2026
-// Real players (no param) are completely unaffected: paywall, login, crediting
-// all run exactly as normal. This block only unlocks free difficulty testing.
-// To fully remove test mode later, delete this block and the `if(TEST_MODE)` guards.
-// ─────────────────────────────────────────────────────────────────────────────
-const TEST_MODE = new URLSearchParams(location.search).get('test') === 'WinterSKI2026';
-let __testForcedTier = null;   // null = follow real 20-array; else 'EASY'/'SUPER'
-let __testMatchNo = 0;
-function __testTierName(){
-  if(__testForcedTier){ __testMatchNo++; return __testForcedTier; }
-  const order = buildCycleOrder();
-  const t = order[__testMatchNo % order.length];
-  __testMatchNo++;
-  return t;
-}
-function __testSetTier(t){
-  __testForcedTier = t;
-  ['CYCLE','EASY','SUPER'].forEach(n=>{ const b=document.getElementById('tt-'+n);
-    if(b) b.style.outline = ((n==='CYCLE'&&t===null)||n===t)?'2px solid #fff':'none'; });
-  const el=document.getElementById('tt-bar');
-  if(el){ if(t){ const c=t==='EASY'?'#4CFF6C':'#FF4444';
-      el.innerHTML='FORCED: <b style="color:'+c+'">'+(t==='SUPER'?'SUPER HARD':'EASY')+'</b> — every match uses this tier';
-    } else el.innerHTML='Following the real 20-array sequence'; }
-  if(typeof resize==='function') setTimeout(resize,0);
-}
-function __testInjectUI(){
-  if(!TEST_MODE) return;
-  const shell = document.getElementById('game-shell') || document.body;
-  const wrap = document.createElement('div');
-  wrap.innerHTML =
-    '<div id="tt-bar" style="padding:5px 10px;background:#111;text-align:center;font-size:11px;color:#ddd;font-family:monospace;border-bottom:1px solid #222;">TEST MODE — following the real 20-array sequence</div>'+
-    '<div style="display:flex;gap:5px;padding:5px 8px;background:#0a0a0a;justify-content:center;border-bottom:1px solid #222;">'+
-    '<button id="tt-CYCLE" style="flex:1;padding:7px 4px;background:#1a1a1a;color:#fff;border:1px solid #333;outline:2px solid #fff;border-radius:4px;font-family:monospace;font-size:11px;cursor:pointer;">20-ARRAY</button>'+
-    '<button id="tt-EASY" style="flex:1;padding:7px 4px;background:#1a1a1a;color:#4CFF6C;border:1px solid #333;border-radius:4px;font-family:monospace;font-size:11px;cursor:pointer;">EASY</button>'+
-    '<button id="tt-SUPER" style="flex:1;padding:7px 4px;background:#1a1a1a;color:#FF4444;border:1px solid #333;border-radius:4px;font-family:monospace;font-size:11px;cursor:pointer;">SUPER HARD</button>'+
-    '</div>';
-  shell.insertBefore(wrap, shell.firstChild);
-  document.getElementById('tt-CYCLE').onclick=()=>__testSetTier(null);
-  document.getElementById('tt-EASY').onclick =()=>__testSetTier('EASY');
-  document.getElementById('tt-SUPER').onclick=()=>__testSetTier('SUPER');
-}
-
 
 // ── MEDIASKILLS BACKEND INTEGRATION ──────────────────────────────────────────
 const MEDIASKILLS_ORIGIN = 'https://mediaskills.vercel.app';
@@ -275,7 +231,6 @@ function showLoginRequired(){
 
 // Server-assigned tier (per-player cycle persistence). Guests are blocked entirely.
 async function getServerTierName(){
-  if(TEST_MODE){ return __testTierName(); }
   if(sessionReady) await sessionReady;
   if(!sessionPlayer){ showLoginRequired(); throw new Error('not logged in'); }
   try {
@@ -318,7 +273,6 @@ function showUnclaimedWinBanner(){
 }
 
 async function creditWin(){
-  if(TEST_MODE) return;
   if(!sessionPlayer) return;
   // Consume immediately (one-shot), same pattern as paymentConfirmed, so a stray
   // second call can't resend the same payment_intent for a different match.
@@ -367,7 +321,6 @@ async function creditWin(){
 // is logged just as reliably as a win — no money moves here, but this is what lets the
 // server's match_results audit log capture every match end, not just the wins.
 async function reportLoss(){
-  if(TEST_MODE) return;
   if(!sessionPlayer) return;
   let paymentIntent = sessionPlayer.currentPaymentIntent;
   sessionPlayer.currentPaymentIntent = null;
@@ -396,7 +349,6 @@ async function reportLoss(){
 
 // Sends browser to Stripe Checkout for the $2.99 entry. Game resumes only on verified return.
 async function startPaidMatch(){
-  if(TEST_MODE){ startSeries(); return; }  // free play, no Stripe
   // HARD GATE: no verified login = no play. Never let a guest start a match.
   if(!sessionPlayer){
     showLoginRequired();
@@ -449,6 +401,19 @@ function nextTierName(){
 }
 
 function curTier(){ return TIERS[currentTierName]; }
+// SUPER HARD "easy point": one contested point (2 or 3, chosen at match start, never
+// point 1) is played at full EASY difficulty. Player must still win the rally. No easing
+// once the match reaches 2-2 (win-by-2 territory).
+let __superEasyPoint = 0;
+function __contestedPointNo(){ return state.p1.score + state.p2.score + 1; }
+function __isEasyPointActive(){
+  if(currentTierName !== 'SUPER') return false;
+  if(__superEasyPoint === 0) return false;
+  if(state.p1.score >= 2 && state.p2.score >= 2) return false;
+  return __contestedPointNo() === __superEasyPoint;
+}
+function aiTierName(){ return __isEasyPointActive() ? 'EASY' : currentTierName; }
+function aiTier(){ return TIERS[aiTierName()]; }
 
 // Legacy display compatibility
 const TIER_LABELS = ['EASY','EASY+','MEDIUM','MEDIUM+','HARD','HARD+','SUPER HARD'];
@@ -492,7 +457,7 @@ const OBSTACLE_INTERVAL = 480;
 // ── RESIZE ────────────────────────────────────────────────────────────────────
 function resize() {
   W = Math.min(window.innerWidth, 420);
-  H = Math.min(window.innerHeight - (typeof TEST_MODE!=='undefined' && TEST_MODE ? 150 : 80), 660); // TEST_MODE reserves room for the tier picker
+  H = Math.min(window.innerHeight - 80, 660); // leave room for HUD + phase bar
   canvas.width = W; canvas.height = H;
   PADDLE_LONG  = Math.round(W * 0.28);
   PADDLE_SHORT = Math.round(H * 0.018);
@@ -544,6 +509,8 @@ async function advanceTier(){
   currentTierName = await getServerTierName();
   currentTier = tierNameToIdx(currentTierName);
   matchNumber++;
+  // Super match: randomly designate point 2 OR 3 as the easy point (never point 1).
+  __superEasyPoint = (currentTierName === 'SUPER') ? (Math.random() < 0.5 ? 2 : 3) : 0;
 }
 
 async function startMatchWithCountdown() {
@@ -606,7 +573,13 @@ function spawnPowerup() {
     setTimeout(() => { powerupScheduled = false; if (gameRunning) spawnPowerup(); }, POWERUP_BLACKOUT_MS - sinceServe + 50);
     return;
   }
-  const type = POWERUP_KEYS[Math.floor(Math.random()*POWERUP_KEYS.length)];
+  let type;
+  if (currentTierName === 'SUPER') {
+    const r = Math.random();
+    type = r < 0.25 ? 'ice' : (r < 0.75 ? 'fire' : 'shrink');   // ice 25% / fire 50% / shrink 25%
+  } else {
+    type = POWERUP_KEYS[Math.floor(Math.random()*POWERUP_KEYS.length)];
+  }
   const margin = Math.min(W,H)*0.12;
   powerup = { type, pulse:0, life:600,   // 600 frames @60fps = ~10s on court
     x: margin + Math.random()*(W-margin*2),
@@ -637,7 +610,7 @@ function applyPowerup(type, bene, victim) {
   const expires = Date.now() + def.duration;
   const vName = victim==='p1' ? state.p1.name : state.p2.name;
   if (type==='ice')    { activeEffects[victim]={type:'frozen',expires}; activeEffects.ball={type:'ice',expires}; showBanner(`${def.emoji} ${vName} FROZEN!`, def.color); }
-  else if (type==='fire')   { activeEffects.ball={type:'fire',expires}; const spd=Math.min(Math.hypot(state.ball.vx,state.ball.vy)*1.3,SPEED_MAX()*1.05); const a=Math.atan2(state.ball.vy,state.ball.vx); state.ball.vx=Math.cos(a)*spd; state.ball.vy=Math.sin(a)*spd; showBanner(`${def.emoji} FIRE BALL!`, def.color); }
+  else if (type==='fire')   { activeEffects.ball={type:'fire',expires}; const spd=Math.min(Math.hypot(state.ball.vx,state.ball.vy)*1.45,SPEED_MAX()*1.15); const a=Math.atan2(state.ball.vy,state.ball.vx); state.ball.vx=Math.cos(a)*spd; state.ball.vy=Math.sin(a)*spd; showBanner(`${def.emoji} FIRE BALL!`, def.color); }
   else if (type==='shrink') { activeEffects[victim]={type:'shrink',expires}; showBanner(`${def.emoji} ${vName} SHRUNK!`, def.color); }
   else if (type==='big')    { activeEffects.ball={type:'big',expires}; showBanner(`${def.emoji} BIG BALL!`, def.color); }
 }
@@ -666,6 +639,13 @@ function getPaddleLen(p) {
   return (activeEffects[k]&&activeEffects[k].type==='shrink') ? PADDLE_LONG*0.45 : PADDLE_LONG;
 }
 
+function __clearFreeze(){
+  // End any active freeze the instant a point is scored — freeze wins at most the point
+  // in progress, never a free streak.
+  if(activeEffects.p1 && activeEffects.p1.type==='frozen') delete activeEffects.p1;
+  if(activeEffects.p2 && activeEffects.p2.type==='frozen') delete activeEffects.p2;
+  if(activeEffects.ball && activeEffects.ball.type==='ice') delete activeEffects.ball;
+}
 function isFrozen(p) {
   const k = p===state.p1?'p1':'p2';
   return activeEffects[k]&&activeEffects[k].type==='frozen';
@@ -707,6 +687,11 @@ function clamp(p){
 function ballHitsPaddle(p){
   const b=state.ball, len=getPaddleLen(p);
   const bigR = BALL_R;
+  // DIRECTION GUARD: only a ball moving INTO this paddle can hit it (p1 bottom = vy>0,
+  // p2 top = vy<0). Prevents phantom bounces off a paddle the ball is moving away from.
+  const isP1 = (p === state.p1);
+  const movingInto = isP1 ? (b.vy > 0) : (b.vy < 0);
+  if (!movingInto) return false;
   // Direct overlap this frame
   const overlapNow = b.y+bigR>p.y && b.y-bigR<p.y+PADDLE_SHORT && b.x+bigR>p.x && b.x-bigR<p.x+len;
   if (overlapNow) return true;
@@ -730,13 +715,26 @@ function ballHitsPaddle(p){
 function deflectOffPaddle(paddle, isP1){
   const b=state.ball, smax=SPEED_MAX(), len=getPaddleLen(paddle);
   const rel=(b.x-(paddle.x+len/2))/(len/2);
-  const angle=rel*(Math.PI/4);
+  let angle=rel*(Math.PI/4);
+  // OFFENSIVE AIMING (CPU=p2, Hard/Super): place the ball toward the corner farthest from
+  // the player so they have to chase. Scales with tier via T.lead (EASY lead=0 => none).
+  if(!isP1 && state.p1){
+    const T = curTier();
+    const aggression = T.lead;
+    if(aggression > 0.5){
+      const playerCentre = state.p1.x + getPaddleLen(state.p1)/2;
+      const targetX = (playerCentre < W/2) ? W - BALL_R*2 : BALL_R*2;
+      const desired = (targetX - b.x) / (W/2);
+      const placeAngle = Math.max(-1, Math.min(1, desired)) * (Math.PI/4);
+      angle = angle*(1-aggression) + placeAngle*aggression;
+    }
+  }
   // Once the ball is returned, the serve ramp is over — play at normal speed.
   serveRamp = 0;
   ballLastHitter = isP1 ? 'p1' : 'p2';  // a real paddle hit - powerups now live
   const cur = Math.hypot(b.vx,b.vy);
   const base = Math.max(cur, BALL_SPEED());   // never return slower than base speed
-  const spd=Math.min(base+0.3, smax);
+  const spd = (currentTierName === 'SUPER' || currentTierName === 'EASY') ? (base + 0.3) : Math.min(base + 0.3, smax);
   b.vx=Math.sin(angle)*spd;
   b.vy=Math.cos(angle)*spd*(isP1?-1:1);
   b.y=isP1?paddle.y-BALL_R-1:paddle.y+PADDLE_SHORT+BALL_R+1;
@@ -759,8 +757,17 @@ function moveAI() {
   const p = state.p2;
   const b = state.ball;
   const len = getPaddleLen(p);
-  const T = curTier();
-  const pspd = Math.min(W,H) * 0.040 * T.speed;
+  const T = aiTier();  // easy-point aware
+  let pspd = Math.min(W,H) * 0.040 * T.speed;
+  // EASY: never whiff a SLOW ball. Give the paddle a speed floor tied to ball speed so it
+  // always reaches slow balls; only genuinely FAST balls (deep in a rally) can beat it.
+  if (aiTierName() === 'EASY') {
+    const ballSpd = Math.hypot(b.vx, b.vy);
+    const rallyCeil = Math.min(W,H) * 0.040;
+    const fastness = Math.min(1, ballSpd / rallyCeil);
+    const reachFloor = Math.min(W,H) * 0.040 * (1.0 - 0.45*fastness);
+    pspd = Math.max(pspd, reachFloor);
+  }
   const ballComing = b.vy < 0;
   const dirNow = ballComing ? -1 : 1;
   // Commit ONE error per rally leg (prevents per-frame jitter).
@@ -804,10 +811,23 @@ function moveAI() {
     const totalTravel = (state.p1.y - state.p2.y) || 1;
     const proximity = 1 - Math.max(0, Math.min(1, travel / totalTravel)); // 0 far .. 1 near
     // ramp confidence: needs to be fairly close before full prediction kicks in
-    const confidence = Math.pow(proximity, 1.6);
+    // REACTION THRESHOLD: the CPU must not move toward the predicted landing until the
+    // ball has crossed REACT_START of the court — like a human reading the shot. The serve
+    // is exempt (a slow serve is visible from the start), so the CPU never concedes it.
+    const REACT_START = 0.55;
+    let confidence;
+    if (serveRamp > 0) {
+      confidence = 1;
+    } else if (proximity < REACT_START) {
+      confidence = 0;
+    } else {
+      const r = (proximity - REACT_START) / (1 - REACT_START);
+      confidence = Math.pow(r, 1.6);
+    }
     const effLead = T.lead * confidence;               // effective trust this frame
     const chase = b.x;                                 // where the ball is right now
-    const aim = chase + (land - chase) * effLead;      // blend current pos -> true landing
+    let aim = chase + (land - chase) * effLead;        // blend current pos -> true landing
+    if (serveRamp > 0) aim = b.x;                       // serve: aim straight at the ball
     aiIdlePhase += 0.09;
     const settle = Math.sin(aiIdlePhase) * len * 0.22;
     target = aim - len/2 + aiCommittedErr + settle;
@@ -852,8 +872,8 @@ function update(){
   if(b.x+bigR>W){b.x=W-bigR;b.vx=-Math.abs(b.vx);}
   if(ballHitsPaddle(p1)) deflectOffPaddle(p1,true);
   if(ballHitsPaddle(p2)) deflectOffPaddle(p2,false);
-  if(b.y>H+20){p2.score++;updateHUD();checkMatchPoint(false);resetBall(false);schedulePowerup();}
-  if(b.y<-20) {p1.score++;updateHUD();checkMatchPoint(true); resetBall(true); schedulePowerup();}
+  if(b.y>H+20){p2.score++;__clearFreeze();updateHUD();checkMatchPoint(false);resetBall(false);schedulePowerup();}
+  if(b.y<-20) {p1.score++;__clearFreeze();updateHUD();checkMatchPoint(true); resetBall(true); schedulePowerup();}
   if(!isFrozen(p1)){
     if(touchState.p1x!==undefined) p1.x=touchState.p1x-getPaddleLen(p1)/2;
     else{if(keys['ArrowLeft'])p1.x-=pspd;if(keys['ArrowRight'])p1.x+=pspd;}
@@ -870,12 +890,17 @@ function update(){
 
 // ── MATCH LOGIC ───────────────────────────────────────────────────────────────
 function checkMatchPoint(p1won){
-  const p=p1won?state.p1:state.p2;
-  if(p.score>=POINTS_TO_WIN){
+  const me=state.p1, cpu=state.p2;
+  const lead = Math.abs(me.score - cpu.score);
+  const winByTwo = (currentTierName === 'SUPER' || currentTierName === 'EASY');
+  const someoneReached = (me.score >= POINTS_TO_WIN || cpu.score >= POINTS_TO_WIN);
+  const decided = winByTwo ? (someoneReached && lead >= 2) : someoneReached;
+  if(decided){
+    const p1wins = me.score > cpu.score;
     gameRunning=false;
     updateHUD();
-    if(p1won) creditWin(); else reportLoss();  // both log server-side, win or loss
-    setTimeout(()=>showMatchResult(p1won), 400);
+    if(p1wins) creditWin(); else reportLoss();  // both log server-side, win or loss
+    setTimeout(()=>showMatchResult(p1wins), 400);
   }
 }
 
@@ -897,11 +922,11 @@ function showMatchResult(p1won){
 
 function showSeriesResult(){ /* unused in single-match */ }
 
-function startSeries(){
+async function startSeries(){
   // START ONE PAID MATCH (payment hook: charge ENTRY_FEE in backend)
   document.getElementById('overlay').style.display='none';
   const sr=document.getElementById('series-result'); if(sr) sr.style.display='none';
-  startMatchWithCountdown();
+  await startMatchWithCountdown();  // tier (and easy-point pick) must be set before spawn
   schedulePowerup();
 }
 
@@ -1046,14 +1071,9 @@ document.getElementById('btn-cashout').onclick = ()=>{
 
 window.addEventListener('resize', resize);
 
-if(TEST_MODE){
-  sessionPlayer = { playerId:0, token:'test', displayName:'TEST', lastMatchNumber:null };
-  __testInjectUI();
-} else {
-  verifySession().then(() => {
-    if(!sessionPlayer) showLoginRequired();  // block guests immediately on load
-  });
-}
+verifySession().then(() => {
+  if(!sessionPlayer) showLoginRequired();  // block guests immediately on load
+});
 // pageshow covers both the normal first load AND a bfcache-restored page (e.g. the
 // browser serving this page from cache instead of re-running scripts after a Stripe
 // redirect) — handleReturnFromPayment() is idempotent so re-running it is safe.
